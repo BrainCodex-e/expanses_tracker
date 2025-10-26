@@ -1,0 +1,39 @@
+# Virtual environments
+venv/
+.env
+.env.*
+
+# Python cache
+__pycache__/
+*.pyc
+
+# SQLite / DB files
+*.sqlite3
+expenses.db
+
+# Secrets and keys
+*.pem
+*.key
+*.crt
+*.env
+
+# IDEs
+.vscode/
+.idea/
+
+# Packaging
+build/
+dist/
+*.egg-info/
+
+# Docker
+.dockerignore
+
+# Misc
+*.log
+
+# Node/PWA artifacts (if any)
+node_modules/
+
+# Mac
+.DS_Store

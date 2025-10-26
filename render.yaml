@@ -1,0 +1,23 @@
+# Render service template for the Shared Expense Tracker
+# Paste this into Render's "Blueprints" or use it as a template. Do NOT store secrets in this file.
+
+services:
+  - type: web
+    name: expenses-tracker
+    env: docker
+    plan: free
+    dockerfilePath: Dockerfile
+    branch: main
+    autoDeploy: true
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn -w 4 -b 0.0.0.0:8000 app:app
+    envVars:
+      # Add these via Render dashboard to keep them secret. Example:
+      # - key: USERS
+      #   value: "erez:StrongPass,lia:StrongPass"
+      #   sync: false
+      # - key: SECRET_KEY
+      #   value: "a-long-random-secret"
+      #   sync: false
+      - key: PORT
+        value: "8000"
