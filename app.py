@@ -19,59 +19,10 @@ from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_wtf import CSRFProtect
 import pandas as pd
-import matplotlib
-matplotlib.use('Agg')  # Use non-interactive backend to save memory
 import matplotlib.pyplot as plt
-# Configure matplotlib for memory efficiency
-plt.ioff()  # Turn off interactive mode
-matplotlib.rcParams['figure.max_open_warning'] = 0  # Disable figure warnings
-from sqlalchemy import create_engine, text, Column, Integer, String, Float, DateTime, Date
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from datetime import date as _date
-
-# Define SQLAlchemy models
-Base = declarative_base()
-
-class Expense(Base):
-    __tablename__ = 'expenses'
-    
-    id = Column(Integer, primary_key=True)
-    ts = Column(DateTime, nullable=False)
-    tx_date = Column(Date, nullable=False)
-    category = Column(String(100), nullable=False)
-    amount = Column(Float, nullable=False)
-    payer = Column(String(100), nullable=False)
-    notes = Column(String(500))
-
-# Load local .env for development (optional). Don't store real secrets in the repo.
-try:
-    from dotenv import load_dotenv
-    load_dotenv()
-except Exception:
-    # dotenv is optional; if it's not installed the app will still read real environment variables.
-    pass
 
 APP_DIR = Path(__file__).parent
 DB_PATH = APP_DIR / "expenses.db"
-
-# Database configuration: use DATABASE_URL if provided, otherwise use SQLite file
-DATABASE_URL = os.environ.get("DATABASE_URL")
-if not DATABASE_URL:
-    # default to a local sqlite file
-    DATABASE_URL = f"sqlite:///{DB_PATH.as_posix()}"
-
-# When using sqlite, SQLAlchemy needs check_same_thread=False
-connect_args = {}
-if DATABASE_URL.startswith("sqlite"):
-    connect_args = {"check_same_thread": False}
-
-# Create engine and session factory
-engine = create_engine(DATABASE_URL, connect_args=connect_args)
-SessionLocal = sessionmaker(bind=engine)
-
-# Ensure tables exist (will create sqlite file if needed)
-Base.metadata.create_all(bind=engine)
 
 CATEGORIES = [
     "Rent",
@@ -93,44 +44,54 @@ DEFAULT_PEOPLE = ["Erez", "Lia"]
 
 
 def init_db():
-    # Tables are created above via SQLAlchemy, this function kept for compatibility
-    Base.metadata.create_all(bind=engine)
+    conn = sqlite3.connect(DB_PATH)
+    cur = conn.cursor()
+    cur.execute(
+        """
+        CREATE TABLE IF NOT EXISTS expenses (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts TEXT NOT NULL,
+            tx_date TEXT NOT NULL,
+            category TEXT NOT NULL,
+            amount REAL NOT NULL,
+            payer TEXT NOT NULL,
+            notes TEXT
+        )
+        """
+    )
+    conn.commit()
+    conn.close()
+
+
+def get_conn():
+    # Simple per-call connection; works fine for lightweight apps.
+    return sqlite3.connect(DB_PATH)
 
 
 def add_expense(tx_date, category, amount, payer, notes):
-    session = SessionLocal()
-    try:
-        # tx_date is an ISO date string (YYYY-MM-DD)
-        exp = Expense(
-            ts=datetime.utcnow(),
-            tx_date=_date.fromisoformat(tx_date),
-            category=category,
-            amount=float(amount),
-            payer=payer,
-            notes=notes,
-        )
-        session.add(exp)
-        session.commit()
-    finally:
-        session.close()
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute(
+        "INSERT INTO expenses (ts, tx_date, category, amount, payer, notes) VALUES (?, ?, ?, ?, ?, ?)",
+        (datetime.utcnow().isoformat(timespec="seconds"), tx_date, category, float(amount), payer, notes),
+    )
+    conn.commit()
+    conn.close()
 
 
 def load_expenses():
-    # Use pandas to read SQL directly from the engine
-    try:
-        df = pd.read_sql_query("SELECT * FROM expenses ORDER BY tx_date DESC, id DESC", con=engine, parse_dates=["tx_date"])
-    except Exception:
-        df = pd.DataFrame()
+    conn = get_conn()
+    df = pd.read_sql_query("SELECT * FROM expenses ORDER BY tx_date DESC, id DESC", conn, parse_dates=["tx_date"]) if Path(DB_PATH).exists() else pd.DataFrame()
+    conn.close()
     return df
 
 
 def delete_row(row_id):
-    session = SessionLocal()
-    try:
-        session.execute(text("DELETE FROM expenses WHERE id = :id"), {"id": int(row_id)})
-        session.commit()
-    finally:
-        session.close()
+    conn = get_conn()
+    cur = conn.cursor()
+    cur.execute("DELETE FROM expenses WHERE id = ?", (int(row_id),))
+    conn.commit()
+    conn.close()
 
 
 app = Flask(__name__)
@@ -366,43 +327,29 @@ def plot_png(kind):
 
     mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end))
     dfm = df[mask].copy()
-    # Use memory-efficient matplotlib settings
-    import matplotlib
-    matplotlib.use('Agg')  # Use non-interactive backend
-    
     buf = io.BytesIO()
-    
-    try:
-        if kind == "by_cat":
-            by_cat = dfm.groupby("category")["amount"].sum().sort_values(ascending=False)
-            fig, ax = plt.subplots(figsize=(6, 4))
-            if not by_cat.empty:
-                ax.pie(by_cat.values, labels=by_cat.index, autopct="%1.0f%%", startangle=90)
-                ax.axis("equal")
-            else:
-                ax.text(0.5, 0.5, "No data", ha="center")
-        else:
-            by_person = dfm.groupby("payer")["amount"].sum()
-            fig, ax = plt.subplots(figsize=(6, 4))
-            if not by_person.empty:
-                ax.bar(by_person.index, by_person.values)
-                ax.set_ylabel("₪")
-            else:
-                ax.text(0.5, 0.5, "No data", ha="center")
+    plt.tight_layout()
 
-        plt.tight_layout()
-        fig.savefig(buf, format="png", dpi=72, bbox_inches='tight')  # Lower DPI to save memory
-        buf.seek(0)
-        
-        # Create response before cleaning up
-        response = send_file(buf, mimetype="image/png")
-        
-    finally:
-        # Always clean up matplotlib resources
-        plt.close(fig)
-        plt.close('all')  # Close any remaining figures
-        
-    return response
+    if kind == "by_cat":
+        by_cat = dfm.groupby("category")["amount"].sum().sort_values(ascending=False)
+        fig, ax = plt.subplots(figsize=(6, 4))
+        if not by_cat.empty:
+            ax.pie(by_cat.values, labels=by_cat.index, autopct="%1.0f%%", startangle=90)
+            ax.axis("equal")
+        else:
+            ax.text(0.5, 0.5, "No data", ha="center")
+    else:
+        by_person = dfm.groupby("payer")["amount"].sum()
+        fig, ax = plt.subplots(figsize=(6, 4))
+        if not by_person.empty:
+            ax.bar(by_person.index, by_person.values)
+            ax.set_ylabel("₪")
+        else:
+            ax.text(0.5, 0.5, "No data", ha="center")
+
+    fig.savefig(buf, format="png")
+    buf.seek(0)
+    return send_file(buf, mimetype="image/png")
 
 
 if __name__ == "__main__":
