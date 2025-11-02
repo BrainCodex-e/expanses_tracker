@@ -19,7 +19,12 @@ from functools import wraps
 from werkzeug.security import generate_password_hash, check_password_hash
 from flask_wtf import CSRFProtect
 import pandas as pd
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend to save memory
 import matplotlib.pyplot as plt
+# Configure matplotlib for memory efficiency
+plt.ioff()  # Turn off interactive mode
+matplotlib.rcParams['figure.max_open_warning'] = 0  # Disable figure warnings
 from sqlalchemy import create_engine, text, Column, Integer, String, Float, DateTime, Date
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
@@ -361,29 +366,43 @@ def plot_png(kind):
 
     mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end))
     dfm = df[mask].copy()
+    # Use memory-efficient matplotlib settings
+    import matplotlib
+    matplotlib.use('Agg')  # Use non-interactive backend
+    
     buf = io.BytesIO()
-    plt.tight_layout()
-
-    if kind == "by_cat":
-        by_cat = dfm.groupby("category")["amount"].sum().sort_values(ascending=False)
-        fig, ax = plt.subplots(figsize=(6, 4))
-        if not by_cat.empty:
-            ax.pie(by_cat.values, labels=by_cat.index, autopct="%1.0f%%", startangle=90)
-            ax.axis("equal")
+    
+    try:
+        if kind == "by_cat":
+            by_cat = dfm.groupby("category")["amount"].sum().sort_values(ascending=False)
+            fig, ax = plt.subplots(figsize=(6, 4))
+            if not by_cat.empty:
+                ax.pie(by_cat.values, labels=by_cat.index, autopct="%1.0f%%", startangle=90)
+                ax.axis("equal")
+            else:
+                ax.text(0.5, 0.5, "No data", ha="center")
         else:
-            ax.text(0.5, 0.5, "No data", ha="center")
-    else:
-        by_person = dfm.groupby("payer")["amount"].sum()
-        fig, ax = plt.subplots(figsize=(6, 4))
-        if not by_person.empty:
-            ax.bar(by_person.index, by_person.values)
-            ax.set_ylabel("₪")
-        else:
-            ax.text(0.5, 0.5, "No data", ha="center")
+            by_person = dfm.groupby("payer")["amount"].sum()
+            fig, ax = plt.subplots(figsize=(6, 4))
+            if not by_person.empty:
+                ax.bar(by_person.index, by_person.values)
+                ax.set_ylabel("₪")
+            else:
+                ax.text(0.5, 0.5, "No data", ha="center")
 
-    fig.savefig(buf, format="png")
-    buf.seek(0)
-    return send_file(buf, mimetype="image/png")
+        plt.tight_layout()
+        fig.savefig(buf, format="png", dpi=72, bbox_inches='tight')  # Lower DPI to save memory
+        buf.seek(0)
+        
+        # Create response before cleaning up
+        response = send_file(buf, mimetype="image/png")
+        
+    finally:
+        # Always clean up matplotlib resources
+        plt.close(fig)
+        plt.close('all')  # Close any remaining figures
+        
+    return response
 
 
 if __name__ == "__main__":

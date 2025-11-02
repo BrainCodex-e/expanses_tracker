@@ -13,4 +13,4 @@ echo "Open: http://127.0.0.1:8000"
 echo "From phone (same WiFi): http://$(hostname -I | awk '{print $1}'):8000"
 echo ""
 
-python3 app.pys
+python3 app.py
