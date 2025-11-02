@@ -20,10 +20,24 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_wtf import CSRFProtect
 import pandas as pd
 import matplotlib.pyplot as plt
-from sqlalchemy import create_engine, text
+from sqlalchemy import create_engine, text, Column, Integer, String, Float, DateTime, Date
+from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from models import Base, Expense
 from datetime import date as _date
+
+# Define SQLAlchemy models
+Base = declarative_base()
+
+class Expense(Base):
+    __tablename__ = 'expenses'
+    
+    id = Column(Integer, primary_key=True)
+    ts = Column(DateTime, nullable=False)
+    tx_date = Column(Date, nullable=False)
+    category = Column(String(100), nullable=False)
+    amount = Column(Float, nullable=False)
+    payer = Column(String(100), nullable=False)
+    notes = Column(String(500))
 
 # Load local .env for development (optional). Don't store real secrets in the repo.
 try:
