@@ -10,14 +10,18 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-# Run with example users
+# Set up local credentials (first time only)
+cp run-local.sh.example run-local.sh
+# Edit run-local.sh with your own usernames and secure passwords
+
+# Generate secure credentials (optional)
+./generate-creds.sh
+
+# Run the app
 ./run-local.sh
 ```
-Open http://127.0.0.1:8000 and login with:
-- **alice** / password123  
-- **bob** / password456
 
-> **Note**: These are example credentials. In production, use secure passwords and consider adding them to `.gitignore`.
+> **Security**: The `run-local.sh` file is git-ignored to keep your credentials safe. Always use secure passwords!
 
 ### Access from Phone
 
@@ -38,11 +42,11 @@ The server binds to all interfaces, so you can access it from your phone on the 
 
 ### Manual Start
 
-If you prefer to set your own credentials:
+If you prefer to set your own credentials without the script:
 
 ```bash
-export USERS="alice:mypass,bob:theirpass"
-export SECRET_KEY="your-secret-key-here" 
+export USERS="your-username:your-secure-password,partner:another-secure-password"
+export SECRET_KEY="$(openssl rand -hex 32)"  # Generate secure key
 export PORT=8000
 python3 app.py
 ```
@@ -91,6 +95,31 @@ ngrok config add-authtoken YOUR_NGROK_AUTHTOKEN
 
 ---
 
+## Fork This Repository
+
+Want to use this expense tracker for your own purposes? Here's how:
+
+1. **Fork this repository** on GitHub
+2. **Clone your fork**: `git clone https://github.com/YOUR-USERNAME/expanses_tracker.git`
+3. **Set up local credentials**: 
+   ```bash
+   cp run-local.sh.example run-local.sh
+   # Edit run-local.sh with your usernames and secure passwords
+   ```
+4. **Deploy to Render** (or your preferred platform):
+   - Connect your GitHub fork to Render
+   - Set environment variables: `USERS` and `SECRET_KEY`
+   - Use `./generate-creds.sh` to generate secure values
+
 ## Cloud Deployment
 
-This project works perfectly on Render's free tier. Just connect your GitHub repo and it auto-deploys with HTTPS!
+### Render (Recommended)
+1. Connect your GitHub repository to [Render](https://render.com)
+2. Create a Web Service
+3. Set environment variables:
+   - `USERS`: `username1:password1,username2:password2`
+   - `SECRET_KEY`: Use output from `./generate-creds.sh`
+4. Deploy! Your app gets HTTPS automatically.
+
+### Other Platforms
+This Flask app works on any platform that supports Python web apps (Heroku, Railway, PythonAnywhere, etc.)

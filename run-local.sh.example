@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+# Template for running the expense tracker locally
+# Copy this file to 'run-local.sh' and update the credentials
+
+export USERS="your-username:your-secure-password,user2:another-password"
+export SECRET_KEY="generate-a-secure-secret-key-here"
+export PORT=8000
+
+echo "Starting expense tracker with your configured users"
+echo "Open: http://127.0.0.1:8000"
+echo "From phone (same WiFi): http://$(hostname -I | awk '{print $1}'):8000"
+echo ""
+
+python3 app.py
