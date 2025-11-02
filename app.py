@@ -3,6 +3,7 @@ import sqlite3
 from datetime import datetime, date
 import io
 import base64
+import urllib.parse as urlparse
 
 from flask import (
     Flask,
@@ -24,6 +25,14 @@ import matplotlib.pyplot as plt
 APP_DIR = Path(__file__).parent
 DB_PATH = APP_DIR / "expenses.db"
 
+# Database configuration - PostgreSQL for production, SQLite for local
+DATABASE_URL = os.environ.get('DATABASE_URL')
+USE_POSTGRES = DATABASE_URL is not None
+
+if USE_POSTGRES:
+    import psycopg2
+    import psycopg2.extras
+
 CATEGORIES = [
     "Rent",
     "Utilities: Electricity",
@@ -44,58 +53,98 @@ DEFAULT_PEOPLE = ["Erez", "Lia"]
 
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS expenses (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ts TEXT NOT NULL,
-            tx_date TEXT NOT NULL,
-            category TEXT NOT NULL,
-            amount REAL NOT NULL,
-            payer TEXT NOT NULL,
-            notes TEXT
+    if USE_POSTGRES:
+        conn = psycopg2.connect(DATABASE_URL)
+        cur = conn.cursor()
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS expenses (
+                id SERIAL PRIMARY KEY,
+                ts TIMESTAMP NOT NULL,
+                tx_date DATE NOT NULL,
+                category TEXT NOT NULL,
+                amount DECIMAL(10,2) NOT NULL,
+                payer TEXT NOT NULL,
+                notes TEXT
+            )
+            """
         )
-        """
-    )
-    conn.commit()
-    conn.close()
+        conn.commit()
+        conn.close()
+    else:
+        conn = sqlite3.connect(DB_PATH)
+        cur = conn.cursor()
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS expenses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ts TEXT NOT NULL,
+                tx_date TEXT NOT NULL,
+                category TEXT NOT NULL,
+                amount REAL NOT NULL,
+                payer TEXT NOT NULL,
+                notes TEXT
+            )
+            """
+        )
+        conn.commit()
+        conn.close()
 
 
 def get_conn():
-    # Simple per-call connection; works fine for lightweight apps.
-    return sqlite3.connect(DB_PATH)
+    if USE_POSTGRES:
+        return psycopg2.connect(DATABASE_URL)
+    else:
+        return sqlite3.connect(DB_PATH)
 
 
 def add_expense(tx_date, category, amount, payer, notes):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO expenses (ts, tx_date, category, amount, payer, notes) VALUES (?, ?, ?, ?, ?, ?)",
-        (datetime.utcnow().isoformat(timespec="seconds"), tx_date, category, float(amount), payer, notes),
-    )
+    
+    if USE_POSTGRES:
+        cur.execute(
+            "INSERT INTO expenses (ts, tx_date, category, amount, payer, notes) VALUES (%s, %s, %s, %s, %s, %s)",
+            (datetime.utcnow(), tx_date, category, float(amount), payer, notes),
+        )
+    else:
+        cur.execute(
+            "INSERT INTO expenses (ts, tx_date, category, amount, payer, notes) VALUES (?, ?, ?, ?, ?, ?)",
+            (datetime.utcnow().isoformat(timespec="seconds"), tx_date, category, float(amount), payer, notes),
+        )
+    
     conn.commit()
     conn.close()
 
 
 def load_expenses():
-    conn = get_conn()
-    df = pd.read_sql_query("SELECT * FROM expenses ORDER BY tx_date DESC, id DESC", conn, parse_dates=["tx_date"]) if Path(DB_PATH).exists() else pd.DataFrame()
-    conn.close()
-    return df
+    if USE_POSTGRES or Path(DB_PATH).exists():
+        conn = get_conn()
+        df = pd.read_sql_query("SELECT * FROM expenses ORDER BY tx_date DESC, id DESC", conn, parse_dates=["tx_date"])
+        conn.close()
+        return df
+    else:
+        return pd.DataFrame()
 
 
 def delete_row(row_id):
     conn = get_conn()
     cur = conn.cursor()
-    cur.execute("DELETE FROM expenses WHERE id = ?", (int(row_id),))
+    
+    if USE_POSTGRES:
+        cur.execute("DELETE FROM expenses WHERE id = %s", (int(row_id),))
+    else:
+        cur.execute("DELETE FROM expenses WHERE id = ?", (int(row_id),))
+    
     conn.commit()
     conn.close()
 
 
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-for-flash")
+
+# Initialize database on app startup
+init_db()
 
 # Session cookie hardening (can be disabled for local non-HTTPS testing by setting SESSION_COOKIE_SECURE=0)
 secure_cookies = os.environ.get("SESSION_COOKIE_SECURE", "1") != "0"
@@ -353,6 +402,9 @@ def plot_png(kind):
 
 
 if __name__ == "__main__":
+    # Initialize database
+    init_db()
+    
     # Bind to 0.0.0.0 so iOS devices on the same network can access the server.
     import os
 
