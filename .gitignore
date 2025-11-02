@@ -38,5 +38,6 @@ node_modules/
 # Mac
 .DS_Store
 
+# Local development scripts with credentials
 run-local.sh
 start.sh
