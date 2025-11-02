@@ -20,9 +20,39 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from flask_wtf import CSRFProtect
 import pandas as pd
 import matplotlib.pyplot as plt
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
+from models import Base, Expense
+from datetime import date as _date
+
+# Load local .env for development (optional). Don't store real secrets in the repo.
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except Exception:
+    # dotenv is optional; if it's not installed the app will still read real environment variables.
+    pass
 
 APP_DIR = Path(__file__).parent
 DB_PATH = APP_DIR / "expenses.db"
+
+# Database configuration: use DATABASE_URL if provided, otherwise use SQLite file
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    # default to a local sqlite file
+    DATABASE_URL = f"sqlite:///{DB_PATH.as_posix()}"
+
+# When using sqlite, SQLAlchemy needs check_same_thread=False
+connect_args = {}
+if DATABASE_URL.startswith("sqlite"):
+    connect_args = {"check_same_thread": False}
+
+# Create engine and session factory
+engine = create_engine(DATABASE_URL, connect_args=connect_args)
+SessionLocal = sessionmaker(bind=engine)
+
+# Ensure tables exist (will create sqlite file if needed)
+Base.metadata.create_all(bind=engine)
 
 CATEGORIES = [
     "Rent",
@@ -44,54 +74,44 @@ DEFAULT_PEOPLE = ["Erez", "Lia"]
 
 
 def init_db():
-    conn = sqlite3.connect(DB_PATH)
-    cur = conn.cursor()
-    cur.execute(
-        """
-        CREATE TABLE IF NOT EXISTS expenses (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            ts TEXT NOT NULL,
-            tx_date TEXT NOT NULL,
-            category TEXT NOT NULL,
-            amount REAL NOT NULL,
-            payer TEXT NOT NULL,
-            notes TEXT
-        )
-        """
-    )
-    conn.commit()
-    conn.close()
-
-
-def get_conn():
-    # Simple per-call connection; works fine for lightweight apps.
-    return sqlite3.connect(DB_PATH)
+    # Tables are created above via SQLAlchemy, this function kept for compatibility
+    Base.metadata.create_all(bind=engine)
 
 
 def add_expense(tx_date, category, amount, payer, notes):
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute(
-        "INSERT INTO expenses (ts, tx_date, category, amount, payer, notes) VALUES (?, ?, ?, ?, ?, ?)",
-        (datetime.utcnow().isoformat(timespec="seconds"), tx_date, category, float(amount), payer, notes),
-    )
-    conn.commit()
-    conn.close()
+    session = SessionLocal()
+    try:
+        # tx_date is an ISO date string (YYYY-MM-DD)
+        exp = Expense(
+            ts=datetime.utcnow(),
+            tx_date=_date.fromisoformat(tx_date),
+            category=category,
+            amount=float(amount),
+            payer=payer,
+            notes=notes,
+        )
+        session.add(exp)
+        session.commit()
+    finally:
+        session.close()
 
 
 def load_expenses():
-    conn = get_conn()
-    df = pd.read_sql_query("SELECT * FROM expenses ORDER BY tx_date DESC, id DESC", conn, parse_dates=["tx_date"]) if Path(DB_PATH).exists() else pd.DataFrame()
-    conn.close()
+    # Use pandas to read SQL directly from the engine
+    try:
+        df = pd.read_sql_query("SELECT * FROM expenses ORDER BY tx_date DESC, id DESC", con=engine, parse_dates=["tx_date"])
+    except Exception:
+        df = pd.DataFrame()
     return df
 
 
 def delete_row(row_id):
-    conn = get_conn()
-    cur = conn.cursor()
-    cur.execute("DELETE FROM expenses WHERE id = ?", (int(row_id),))
-    conn.commit()
-    conn.close()
+    session = SessionLocal()
+    try:
+        session.execute(text("DELETE FROM expenses WHERE id = :id"), {"id": int(row_id)})
+        session.commit()
+    finally:
+        session.close()
 
 
 app = Flask(__name__)
