@@ -47,18 +47,19 @@ CATEGORIES = [
     "Health / Beauty",
     "Gifts / Events",
     "Misc",
+    "Arnoni",
 ]
-
+# Keep these as backend constants for now, but they could be made configurable
 DEFAULT_PEOPLE = ["Erez", "Lia"]
 
-# Budget limits per category (in ₪)
+# Budget limits per category (in ₪) - could be moved to frontend or made user-configurable
 BUDGET_LIMITS = {
-    "Food: Groceries": 800,
-    "Food: Meat": 400,
-    "Food: Eating Out / Wolt": 600,
-    "Transport": 300,
-    "Health / Beauty": 200,
-    "Sport": 150,
+    "Food: Groceries": 500,
+    "Food: Meat": 300,
+    "Food: Eating Out / Wolt": 400,
+    "Transport": 20,
+    "Health / Beauty": 240,
+    "Sport": 420,
     "Household / Cleaning": 100,
     "Gifts / Events": 200,
     "Misc": 150,
@@ -505,6 +506,42 @@ def budget_progress_png(person):
     buf.seek(0)
     plt.close(fig)
     return send_file(buf, mimetype="image/png")
+
+
+@app.route("/budget/settings")
+@login_required  
+def budget_settings():
+    """Display budget settings page"""
+    return render_template("budget_settings.html", 
+                         budget_limits=BUDGET_LIMITS, 
+                         categories=CATEGORIES)
+
+
+@app.route("/budget/update", methods=["POST"])
+@login_required
+def update_budget():
+    """Update budget limits"""
+    global BUDGET_LIMITS
+    
+    # Get form data and update BUDGET_LIMITS
+    new_budget_limits = {}
+    
+    for category in CATEGORIES:
+        budget_value = request.form.get(f"budget_{category}")
+        if budget_value:
+            try:
+                budget_amount = float(budget_value)
+                if budget_amount >= 0:  # Only allow non-negative budgets
+                    new_budget_limits[category] = budget_amount
+            except (ValueError, TypeError):
+                flash(f"Invalid budget amount for {category}", "error")
+                return redirect(url_for("budget_settings"))
+    
+    # Update the global budget limits
+    BUDGET_LIMITS.update(new_budget_limits)
+    
+    flash("Budget limits updated successfully!", "success")
+    return redirect(url_for("index"))
 
 
 if __name__ == "__main__":
