@@ -564,6 +564,77 @@ def update_budget():
     return redirect(url_for("index"))
 
 
+@app.route("/budget/dashboard")
+@login_required  
+def budget_dashboard():
+    """Display dedicated budget dashboard page"""
+    df = load_expenses()
+    
+    # Calculate current month data for budget overview
+    today = date.today()
+    month_start = date(today.year, today.month, 1)
+    if month_start.month == 12:
+        month_end = date(month_start.year + 1, 1, 1)
+    else:
+        month_end = date(month_start.year, month_start.month + 1, 1)
+    
+    # Calculate spending per person per category for this month
+    budget_status = {}
+    total_spent_by_person = {}
+    total_budget_by_person = {}
+    
+    for person in DEFAULT_PEOPLE:
+        budget_status[person] = {}
+        total_spent_by_person[person] = 0
+        total_budget_by_person[person] = 0
+        person_budgets = BUDGET_LIMITS.get(person, {})
+        
+        if not df.empty:
+            # Filter for current month and specific person
+            df["tx_date"] = pd.to_datetime(df["tx_date"]).dt.date
+            mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & \
+                   (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end)) & \
+                   (df["payer"] == person)
+            person_df = df[mask].copy()
+            
+            if not person_df.empty:
+                spent_by_category = person_df.groupby("category")["amount"].sum()
+            else:
+                spent_by_category = pd.Series([], dtype=float)
+        else:
+            spent_by_category = pd.Series([], dtype=float)
+        
+        # Calculate budget status for each category
+        for category, budget_limit in person_budgets.items():
+            spent = spent_by_category.get(category, 0)
+            remaining = max(0, budget_limit - spent)
+            percentage = (spent / budget_limit * 100) if budget_limit > 0 else 0
+            
+            status = "success"  # Green
+            if spent > budget_limit:
+                status = "danger"  # Red - over budget
+            elif spent > budget_limit * 0.8:
+                status = "warning"  # Orange - warning
+            
+            budget_status[person][category] = {
+                "spent": spent,
+                "budget": budget_limit,
+                "remaining": remaining,
+                "percentage": percentage,
+                "status": status
+            }
+            
+            total_spent_by_person[person] += spent
+            total_budget_by_person[person] += budget_limit
+    
+    return render_template("budget_dashboard.html", 
+                         budget_status=budget_status,
+                         total_spent_by_person=total_spent_by_person,
+                         total_budget_by_person=total_budget_by_person,
+                         people=DEFAULT_PEOPLE,
+                         month_name=today.strftime("%B %Y"))
+
+
 if __name__ == "__main__":
     # Initialize database
     init_db()

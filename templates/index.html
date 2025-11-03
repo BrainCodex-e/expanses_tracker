@@ -82,9 +82,14 @@
           <div class="card mb-3">
             <div class="card-body">
               <h5 class="card-title">💰 Budget</h5>
-              <a class="btn btn-outline-primary btn-sm" href="/budget/settings">
-                ⚙️ Manage Budget Limits
-              </a>
+              <div class="d-grid gap-2">
+                <a class="btn btn-primary btn-sm" href="/budget/dashboard">
+                  📊 Budget Dashboard
+                </a>
+                <a class="btn btn-outline-secondary btn-sm" href="/budget/settings">
+                  ⚙️ Manage Limits
+                </a>
+              </div>
             </div>
           </div>
 
@@ -139,24 +144,18 @@
             </div>
           </div>
 
-          <!-- Budget Progress Charts -->
+          <!-- Budget Progress Link -->
           <div class="card mb-3">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-center mb-3">
-                <h5 class="card-title mb-0">📊 Budget Progress</h5>
-                <a href="/budget/settings" class="btn btn-outline-primary btn-sm">
-                  ⚙️ Edit Limits
+            <div class="card-body text-center">
+              <h5 class="card-title">📊 Budget Tracking</h5>
+              <p class="text-muted">Track your monthly spending against budget limits</p>
+              <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                <a href="/budget/dashboard" class="btn btn-primary btn-lg">
+                  📈 View Budget Dashboard
                 </a>
-              </div>
-              <div class="row">
-                {% for person in people %}
-                  <div class="col-md-6 mb-3">
-                    <div class="card p-2">
-                      <h6 class="text-center mb-2">{{ person }}</h6>
-                      <img src="/budget/{{ person }}.png" class="img-fluid" alt="{{ person }} budget progress">
-                    </div>
-                  </div>
-                {% endfor %}
+                <a href="/budget/settings" class="btn btn-outline-secondary">
+                  ⚙️ Manage Limits
+                </a>
               </div>
             </div>
           </div>
