@@ -42,3 +42,6 @@ node_modules/
 # Local development scripts with credentials
 run-local.sh
 start.sh
+
+TECHNICAL.md
+PROJECT_SUMMARY.md

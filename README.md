@@ -1,27 +1,39 @@
-# Expense Tracker — Flask
+# 💸 Advanced Expense Tracker & Budget Management System
 
-A simple Flask-based shared expense tracker. Add expenses, view charts, export CSV, and use from mobile devices.
+A comprehensive full-stack web application for personal expense tracking and budget management. Built with modern web technologies, featuring real-time budget monitoring, expense splitting, and personalized dashboards.
 
-## Quick Start
+## 🎯 Project Overview
 
-```bash
-# Install dependencies
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+This project demonstrates full-stack development skills including:
+- **Backend Architecture**: RESTful Flask API with dual database support
+- **Frontend Development**: Responsive Bootstrap UI with interactive charts  
+- **Database Design**: Schema evolution and migration handling
+- **Security Implementation**: Authentication, authorization, and data protection
+- **Cloud Deployment**: Production-ready containerized deployment
+- **Data Visualization**: Dynamic chart generation and budget analytics
 
-# Set up local credentials (first time only)
-cp run-local.sh.example run-local.sh
-# Edit run-local.sh with your own usernames and secure passwords
+## 🏗️ Architecture & Technical Stack
 
-# Generate secure credentials (optional)
-./generate-creds.sh
+### **Backend Technologies**
+- **Flask 3.0.0**: Modern Python web framework with blueprints
+- **SQLite/PostgreSQL**: Dual database support for dev/production environments
+- **Pandas**: Advanced data processing and analytics
+- **Matplotlib**: Server-side chart generation
+- **Psycopg2**: PostgreSQL adapter with connection pooling
+- **Gunicorn**: WSGI HTTP server for production deployment
 
-# Run the app
-./run-local.sh
-```
+### **Frontend Technologies**  
+- **Bootstrap 5**: Mobile-first responsive framework
+- **Vanilla JavaScript**: PWA functionality and service workers
+- **Jinja2 Templates**: Server-side rendering with template inheritance
+- **CSS3**: Custom styling with CSS variables and flexbox
 
-> **Security**: The `run-local.sh` file is git-ignored to keep your credentials safe. Always use secure passwords!
+### **DevOps & Security**
+- **Docker**: Containerization for consistent deployments
+- **Render**: Cloud platform with automatic CI/CD from GitHub
+- **Environment Configuration**: 12-factor app methodology
+- **CSRF Protection**: Form security against cross-site attacks
+- **Password Hashing**: Werkzeug security for credential protection
 
 ### Access from Phone
 
