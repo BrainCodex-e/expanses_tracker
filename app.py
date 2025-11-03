@@ -52,17 +52,30 @@ CATEGORIES = [
 # Keep these as backend constants for now, but they could be made configurable
 DEFAULT_PEOPLE = ["Erez", "Lia"]
 
-# Budget limits per category (in ₪) - could be moved to frontend or made user-configurable
+# Budget limits per person per category (in ₪)
 BUDGET_LIMITS = {
-    "Food: Groceries": 500,
-    "Food: Meat": 300,
-    "Food: Eating Out / Wolt": 400,
-    "Transport": 20,
-    "Health / Beauty": 240,
-    "Sport": 420,
-    "Household / Cleaning": 100,
-    "Gifts / Events": 200,
-    "Misc": 150,
+    "Erez": {
+        "Food: Groceries": 500,
+        "Food: Meat": 300,
+        "Food: Eating Out / Wolt": 400,
+        "Transport": 20,
+        "Health / Beauty": 240,
+        "Sport": 420,
+        "Household / Cleaning": 100,
+        "Gifts / Events": 200,
+        "Misc": 150,
+    },
+    "Lia": {
+        "Food: Groceries": 500,
+        "Food: Meat": 300,
+        "Food: Eating Out / Wolt": 400,
+        "Transport": 20,
+        "Health / Beauty": 240,
+        "Sport": 420,
+        "Household / Cleaning": 100,
+        "Gifts / Events": 200,
+        "Misc": 150,
+    }
 }
 
 
@@ -452,7 +465,10 @@ def budget_progress_png(person):
     remaining_amounts = []
     colors = []
     
-    for category, budget_limit in BUDGET_LIMITS.items():
+    # Get person-specific budget limits
+    person_budgets = BUDGET_LIMITS.get(person, {})
+    
+    for category, budget_limit in person_budgets.items():
         spent = spent_by_category.get(category, 0)
         remaining = max(0, budget_limit - spent)
         
@@ -479,7 +495,7 @@ def budget_progress_png(person):
                             color=colors, alpha=0.3, label='Remaining')
     
     # Add budget limit lines
-    for i, (category, budget_limit) in enumerate(BUDGET_LIMITS.items()):
+    for i, (category, budget_limit) in enumerate(person_budgets.items()):
         ax.axvline(x=budget_limit, ymin=(i-0.4)/len(categories), ymax=(i+0.4)/len(categories), 
                   color='black', linestyle='--', alpha=0.7, linewidth=2)
     
@@ -514,31 +530,35 @@ def budget_settings():
     """Display budget settings page"""
     return render_template("budget_settings.html", 
                          budget_limits=BUDGET_LIMITS, 
-                         categories=CATEGORIES)
+                         categories=CATEGORIES,
+                         people=DEFAULT_PEOPLE)
 
 
 @app.route("/budget/update", methods=["POST"])
 @login_required
 def update_budget():
-    """Update budget limits"""
+    """Update budget limits per person"""
     global BUDGET_LIMITS
     
-    # Get form data and update BUDGET_LIMITS
-    new_budget_limits = {}
-    
-    for category in CATEGORIES:
-        budget_value = request.form.get(f"budget_{category}")
-        if budget_value:
-            try:
-                budget_amount = float(budget_value)
-                if budget_amount >= 0:  # Only allow non-negative budgets
-                    new_budget_limits[category] = budget_amount
-            except (ValueError, TypeError):
-                flash(f"Invalid budget amount for {category}", "error")
-                return redirect(url_for("budget_settings"))
-    
-    # Update the global budget limits
-    BUDGET_LIMITS.update(new_budget_limits)
+    # Get form data and update BUDGET_LIMITS per person
+    for person in DEFAULT_PEOPLE:
+        # Ensure person exists in BUDGET_LIMITS
+        if person not in BUDGET_LIMITS:
+            BUDGET_LIMITS[person] = {}
+            
+        for category in CATEGORIES:
+            budget_value = request.form.get(f"budget_{person}_{category}")
+            if budget_value:
+                try:
+                    budget_amount = float(budget_value)
+                    if budget_amount >= 0:  # Only allow non-negative budgets
+                        BUDGET_LIMITS[person][category] = budget_amount
+                except (ValueError, TypeError):
+                    flash(f"Invalid budget amount for {person} - {category}", "error")
+                    return redirect(url_for("budget_settings"))
+            else:
+                # Remove budget limit if field is empty
+                BUDGET_LIMITS[person].pop(category, None)
     
     flash("Budget limits updated successfully!", "success")
     return redirect(url_for("index"))
