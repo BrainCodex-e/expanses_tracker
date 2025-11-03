@@ -39,69 +39,71 @@
         {% endif %}
       {% endwith %}
 
-      <!-- Budget Overview Cards -->
+      <!-- Budget Overview Card -->
       <div class="row mb-4">
-        {% for person in people %}
-          <div class="col-md-6 mb-3">
-            <div class="card">
-              <div class="card-body">
-                <h5 class="card-title">🧑‍💼 {{ person }} - Total Budget</h5>
-                <div class="row">
-                  <div class="col-6">
-                    <div class="text-center">
-                      <h3 class="text-primary">₪{{ "%.0f"|format(total_spent_by_person[person]) }}</h3>
-                      <small class="text-muted">Spent</small>
-                    </div>
-                  </div>
-                  <div class="col-6">
-                    <div class="text-center">
-                      <h3 class="text-success">₪{{ "%.0f"|format(total_budget_by_person[person]) }}</h3>
-                      <small class="text-muted">Total Budget</small>
-                    </div>
+        <div class="col-md-8 mx-auto">
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">🧑‍💼 {{ current_user }} - Your Total Budget</h5>
+              <div class="row">
+                <div class="col-6">
+                  <div class="text-center">
+                    <h3 class="text-primary">₪{{ "%.0f"|format(total_spent_by_user) }}</h3>
+                    <small class="text-muted">Spent This Month</small>
                   </div>
                 </div>
-                {% set total_percentage = (total_spent_by_person[person] / total_budget_by_person[person] * 100) if total_budget_by_person[person] > 0 else 0 %}
-                <div class="progress mt-3" style="height: 10px;">
-                  <div class="progress-bar 
-                    {% if total_percentage > 100 %}bg-danger
-                    {% elif total_percentage > 80 %}bg-warning
-                    {% else %}bg-success{% endif %}" 
-                    style="width: {{ [total_percentage, 100]|min }}%"></div>
+                <div class="col-6">
+                  <div class="text-center">
+                    <h3 class="text-success">₪{{ "%.0f"|format(total_budget_by_user) }}</h3>
+                    <small class="text-muted">Total Budget</small>
+                  </div>
                 </div>
-                <small class="text-muted">{{ "%.1f"|format(total_percentage) }}% of total budget used</small>
+              </div>
+              {% set total_percentage = (total_spent_by_user / total_budget_by_user * 100) if total_budget_by_user > 0 else 0 %}
+              <div class="progress mt-3" style="height: 15px;">
+                <div class="progress-bar 
+                  {% if total_percentage > 100 %}bg-danger
+                  {% elif total_percentage > 80 %}bg-warning
+                  {% else %}bg-success{% endif %}" 
+                  style="width: {{ [total_percentage, 100]|min }}%"></div>
+              </div>
+              <div class="text-center mt-2">
+                <span class="badge 
+                  {% if total_percentage > 100 %}bg-danger
+                  {% elif total_percentage > 80 %}bg-warning
+                  {% else %}bg-success{% endif %}">
+                  {{ "%.1f"|format(total_percentage) }}% of total budget used
+                </span>
               </div>
             </div>
           </div>
-        {% endfor %}
+        </div>
       </div>
 
-      <!-- Budget Progress Charts -->
+      <!-- Budget Progress Chart -->
       <div class="row mb-4">
-        {% for person in people %}
-          <div class="col-lg-6 mb-4">
-            <div class="card">
-              <div class="card-body">
-                <h5 class="card-title text-center mb-3">📈 {{ person }} - Budget Progress</h5>
-                <div class="text-center">
-                  <img src="/budget/{{ person }}.png" class="img-fluid" alt="{{ person }} budget progress" style="max-height: 400px;">
-                </div>
+        <div class="col-12">
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title text-center mb-3">📈 Your Budget Progress</h5>
+              <div class="text-center">
+                <img src="/budget/{{ current_user }}.png" class="img-fluid" alt="{{ current_user }} budget progress" style="max-height: 500px;">
               </div>
             </div>
           </div>
-        {% endfor %}
+        </div>
       </div>
 
       <!-- Detailed Budget Breakdown -->
-      {% for person in people %}
-        <div class="row mb-4">
-          <div class="col-12">
-            <div class="card">
-              <div class="card-body">
-                <h5 class="card-title">💰 {{ person }} - Category Breakdown</h5>
-                
-                {% if budget_status[person] %}
-                  <div class="row">
-                    {% for category, status in budget_status[person].items() %}
+      <div class="row mb-4">
+        <div class="col-12">
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">💰 Your Category Breakdown</h5>
+              
+              {% if budget_status[current_user] %}
+                <div class="row">
+                  {% for category, status in budget_status[current_user].items() %}
                       <div class="col-lg-4 col-md-6 mb-3">
                         <div class="card border-{{ status.status }}">
                           <div class="card-body">
@@ -145,21 +147,17 @@
                           </div>
                         </div>
                       </div>
-                    {% endfor %}
-                  </div>
-                {% else %}
-                  <div class="alert alert-info">
-                    <strong>{{ person }}</strong> has no budget limits set. 
-                    <a href="/budget/settings" class="alert-link">Set budget limits</a> to start tracking.
-                  </div>
-                {% endif %}
+                {% endfor %}
               </div>
-            </div>
+            {% else %}
+              <div class="alert alert-info">
+                You have no budget limits set. 
+                <a href="/budget/settings" class="alert-link">Set your budget limits</a> to start tracking your spending.
+              </div>
+            {% endif %}
           </div>
         </div>
-      {% endfor %}
-
-      <!-- Help Section -->
+      </div>      <!-- Help Section -->
       <div class="row">
         <div class="col-12">
           <div class="card bg-light">

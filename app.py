@@ -570,38 +570,50 @@ def budget_progress_png(person):
 @app.route("/budget/settings")
 @login_required  
 def budget_settings():
-    """Display budget settings page"""
+    """Display budget settings page for current user only"""
+    current_user = session.get('user')
+    if not current_user:
+        flash("Please log in to manage your budget", "error")
+        return redirect(url_for("login"))
+    
+    # Only show current user's budget limits
+    user_budget_limits = BUDGET_LIMITS.get(current_user, {})
+    
     return render_template("budget_settings.html", 
-                         budget_limits=BUDGET_LIMITS, 
+                         budget_limits=user_budget_limits, 
                          categories=CATEGORIES,
-                         people=DEFAULT_PEOPLE)
+                         current_user=current_user)
 
 
 @app.route("/budget/update", methods=["POST"])
 @login_required
 def update_budget():
-    """Update budget limits per person"""
+    """Update budget limits for current user only"""
     global BUDGET_LIMITS
     
-    # Get form data and update BUDGET_LIMITS per person
-    for person in DEFAULT_PEOPLE:
-        # Ensure person exists in BUDGET_LIMITS
-        if person not in BUDGET_LIMITS:
-            BUDGET_LIMITS[person] = {}
-            
-        for category in CATEGORIES:
-            budget_value = request.form.get(f"budget_{person}_{category}")
-            if budget_value:
-                try:
-                    budget_amount = float(budget_value)
-                    if budget_amount >= 0:  # Only allow non-negative budgets
-                        BUDGET_LIMITS[person][category] = budget_amount
-                except (ValueError, TypeError):
-                    flash(f"Invalid budget amount for {person} - {category}", "error")
-                    return redirect(url_for("budget_settings"))
-            else:
-                # Remove budget limit if field is empty
-                BUDGET_LIMITS[person].pop(category, None)
+    current_user = session.get('user')
+    if not current_user:
+        flash("Please log in to manage your budget", "error")
+        return redirect(url_for("login"))
+    
+    # Ensure current user exists in BUDGET_LIMITS
+    if current_user not in BUDGET_LIMITS:
+        BUDGET_LIMITS[current_user] = {}
+    
+    # Update only current user's budget limits
+    for category in CATEGORIES:
+        budget_value = request.form.get(f"budget_{category}")
+        if budget_value:
+            try:
+                budget_amount = float(budget_value)
+                if budget_amount >= 0:  # Only allow non-negative budgets
+                    BUDGET_LIMITS[current_user][category] = budget_amount
+            except (ValueError, TypeError):
+                flash(f"Invalid budget amount for {category}", "error")
+                return redirect(url_for("budget_settings"))
+        else:
+            # Remove budget limit if field is empty
+            BUDGET_LIMITS[current_user].pop(category, None)
     
     flash("Budget limits updated successfully!", "success")
     return redirect(url_for("index"))
@@ -610,7 +622,12 @@ def update_budget():
 @app.route("/budget/dashboard")
 @login_required  
 def budget_dashboard():
-    """Display dedicated budget dashboard page"""
+    """Display dedicated budget dashboard page for current user only"""
+    current_user = session.get('user')
+    if not current_user:
+        flash("Please log in to view your budget dashboard", "error")
+        return redirect(url_for("login"))
+        
     df = load_expenses()
     
     # Calculate current month data for budget overview
@@ -621,85 +638,85 @@ def budget_dashboard():
     else:
         month_end = date(month_start.year, month_start.month + 1, 1)
     
-    # Calculate spending per person per category for this month
+    # Calculate spending for current user only
     budget_status = {}
-    total_spent_by_person = {}
-    total_budget_by_person = {}
+    total_spent_by_user = 0
+    total_budget_by_user = 0
     
-    for person in DEFAULT_PEOPLE:
-        budget_status[person] = {}
-        total_spent_by_person[person] = 0
-        total_budget_by_person[person] = 0
-        person_budgets = BUDGET_LIMITS.get(person, {})
+    # Only process current user's data
+    budget_status[current_user] = {}
+    person_budgets = BUDGET_LIMITS.get(current_user, {})
         
-        if not df.empty:
-            # Filter for current month and specific person
-            df["tx_date"] = pd.to_datetime(df["tx_date"]).dt.date
-            mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & \
-                   (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end)) & \
-                   (df["payer"] == person)
-            person_df = df[mask].copy()
+    if not df.empty:
+        # Filter for current month and current user
+        df["tx_date"] = pd.to_datetime(df["tx_date"]).dt.date
+        mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & \
+               (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end)) & \
+               (df["payer"] == current_user)
+        person_df = df[mask].copy()
+        
+        if not person_df.empty:
+            # Calculate actual spending for budget tracking (accounting for splits)
+            person_df_copy = person_df.copy()
             
-            if not person_df.empty:
-                # Calculate actual spending for budget tracking (accounting for splits)
-                person_df_copy = person_df.copy()
-                
-                # For expenses paid by this person that are split, only count half
-                split_mask = person_df_copy['split_with'].notna()
-                person_df_copy.loc[split_mask, 'amount'] = person_df_copy.loc[split_mask, 'amount'] / 2
-                
-                # Add expenses where this person was split with (they owe half)
-                other_split_mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & \
-                                 (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end)) & \
-                                 (df["split_with"] == person)
-                
-                other_split_df = df[other_split_mask].copy()
-                if not other_split_df.empty:
-                    # This person owes half of these expenses
-                    other_split_df['amount'] = other_split_df['amount'] / 2
-                    # Combine both dataframes
-                    person_df_copy = pd.concat([person_df_copy, other_split_df], ignore_index=True)
-                
-                spent_by_category = person_df_copy.groupby("category")["amount"].sum()
-            else:
-                spent_by_category = pd.Series([], dtype=float)
+            # For expenses paid by this user that are split, only count half
+            split_mask = person_df_copy['split_with'].notna()
+            person_df_copy.loc[split_mask, 'amount'] = person_df_copy.loc[split_mask, 'amount'] / 2
+            
+            # Add expenses where this user was split with (they owe half)
+            other_split_mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & \
+                             (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end)) & \
+                             (df["split_with"] == current_user)
+            
+            other_split_df = df[other_split_mask].copy()
+            if not other_split_df.empty:
+                # This user owes half of these expenses
+                other_split_df['amount'] = other_split_df['amount'] / 2
+                # Combine both dataframes
+                person_df_copy = pd.concat([person_df_copy, other_split_df], ignore_index=True)
+            
+            spent_by_category = person_df_copy.groupby("category")["amount"].sum()
         else:
             spent_by_category = pd.Series([], dtype=float)
+    else:
+        spent_by_category = pd.Series([], dtype=float)
+    
+    # Calculate budget status for each category for current user
+    for category, budget_limit in person_budgets.items():
+        spent = spent_by_category.get(category, 0)
+        remaining = max(0, budget_limit - spent)
+        percentage = (spent / budget_limit * 100) if budget_limit > 0 else 0
         
-        # Calculate budget status for each category
-        for category, budget_limit in person_budgets.items():
-            spent = spent_by_category.get(category, 0)
-            remaining = max(0, budget_limit - spent)
-            percentage = (spent / budget_limit * 100) if budget_limit > 0 else 0
-            
-            status = "success"  # Green
-            if spent > budget_limit:
-                status = "danger"  # Red - over budget
-            elif spent > budget_limit * 0.8:
-                status = "warning"  # Orange - warning
-            
-            budget_status[person][category] = {
-                "spent": spent,
-                "budget": budget_limit,
-                "remaining": remaining,
-                "percentage": percentage,
-                "status": status
-            }
-            
-            total_spent_by_person[person] += spent
-            total_budget_by_person[person] += budget_limit
+        status = "success"  # Green
+        if spent > budget_limit:
+            status = "danger"  # Red - over budget
+        elif spent > budget_limit * 0.8:
+            status = "warning"  # Orange - warning
+        
+        budget_status[current_user][category] = {
+            "spent": spent,
+            "budget": budget_limit,
+            "remaining": remaining,
+            "percentage": percentage,
+            "status": status
+        }
+        
+        total_spent_by_user += spent
+        total_budget_by_user += budget_limit
     
     return render_template("budget_dashboard.html", 
                          budget_status=budget_status,
-                         total_spent_by_person=total_spent_by_person,
-                         total_budget_by_person=total_budget_by_person,
-                         people=DEFAULT_PEOPLE,
+                         total_spent_by_user=total_spent_by_user,
+                         total_budget_by_user=total_budget_by_user,
+                         current_user=current_user,
                          month_name=today.strftime("%B %Y"))
 
 
 if __name__ == "__main__":
     # Initialize database
     init_db()
+    # Run database migration
+    migrate_db()
     # Run migration for split functionality
     migrate_db()
     
