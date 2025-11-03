@@ -51,6 +51,19 @@ CATEGORIES = [
 
 DEFAULT_PEOPLE = ["Erez", "Lia"]
 
+# Budget limits per category (in ₪)
+BUDGET_LIMITS = {
+    "Food: Groceries": 800,
+    "Food: Meat": 400,
+    "Food: Eating Out / Wolt": 600,
+    "Transport": 300,
+    "Health / Beauty": 200,
+    "Sport": 150,
+    "Household / Cleaning": 100,
+    "Gifts / Events": 200,
+    "Misc": 150,
+}
+
 
 def init_db():
     if USE_POSTGRES:
@@ -398,6 +411,99 @@ def plot_png(kind):
 
     fig.savefig(buf, format="png")
     buf.seek(0)
+    return send_file(buf, mimetype="image/png")
+
+
+@app.route("/budget/<person>.png")
+@login_required
+def budget_progress_png(person):
+    """Generate budget progress chart for a specific person"""
+    df = load_expenses()
+    if df.empty:
+        return "No data", 400
+    
+    # Filter for current month and specific person
+    df["tx_date"] = pd.to_datetime(df["tx_date"]).dt.date
+    today = date.today()
+    month_start = date(today.year, today.month, 1)
+    if month_start.month == 12:
+        month_end = date(month_start.year + 1, 1, 1)
+    else:
+        month_end = date(month_start.year, month_start.month + 1, 1)
+
+    mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & \
+           (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end)) & \
+           (df["payer"] == person)
+    
+    person_df = df[mask].copy()
+    
+    # Calculate spending by category
+    if person_df.empty:
+        spent_by_category = pd.Series([], dtype=float)
+    else:
+        spent_by_category = person_df.groupby("category")["amount"].sum()
+    
+    # Create budget progress chart
+    fig, ax = plt.subplots(figsize=(10, 8))
+    
+    categories = []
+    spent_amounts = []
+    remaining_amounts = []
+    colors = []
+    
+    for category, budget_limit in BUDGET_LIMITS.items():
+        spent = spent_by_category.get(category, 0)
+        remaining = max(0, budget_limit - spent)
+        
+        categories.append(category.replace("Food: ", "").replace("Utilities: ", ""))
+        spent_amounts.append(spent)
+        remaining_amounts.append(remaining)
+        
+        # Color coding: red if over budget, yellow if >80%, green if <80%
+        if spent > budget_limit:
+            colors.append('#ff4444')  # Red - over budget
+        elif spent > budget_limit * 0.8:
+            colors.append('#ffaa00')  # Orange - warning
+        else:
+            colors.append('#44aa44')  # Green - safe
+    
+    # Create horizontal stacked bar chart
+    y_pos = range(len(categories))
+    
+    # Spent amounts (left side)
+    bars_spent = ax.barh(y_pos, spent_amounts, color=colors, alpha=0.8, label='Spent')
+    
+    # Remaining amounts (right side, lighter color)
+    bars_remaining = ax.barh(y_pos, remaining_amounts, left=spent_amounts, 
+                            color=colors, alpha=0.3, label='Remaining')
+    
+    # Add budget limit lines
+    for i, (category, budget_limit) in enumerate(BUDGET_LIMITS.items()):
+        ax.axvline(x=budget_limit, ymin=(i-0.4)/len(categories), ymax=(i+0.4)/len(categories), 
+                  color='black', linestyle='--', alpha=0.7, linewidth=2)
+    
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(categories)
+    ax.set_xlabel('Amount (₪)')
+    ax.set_title(f'{person} - Budget Progress ({today.strftime("%B %Y")})', fontsize=14, fontweight='bold')
+    
+    # Add value labels on bars
+    for i, (spent, remaining) in enumerate(zip(spent_amounts, remaining_amounts)):
+        total_budget = spent + remaining
+        if spent > 0:
+            ax.text(spent/2, i, f'₪{spent:.0f}', ha='center', va='center', fontweight='bold', color='white')
+        if remaining > 0:
+            ax.text(spent + remaining/2, i, f'₪{remaining:.0f}', ha='center', va='center', fontweight='bold')
+    
+    # Add legend
+    ax.legend(loc='lower right')
+    
+    plt.tight_layout()
+    
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=100, bbox_inches='tight')
+    buf.seek(0)
+    plt.close(fig)
     return send_file(buf, mimetype="image/png")
 
 

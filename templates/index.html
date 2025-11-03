@@ -130,6 +130,23 @@
             </div>
           </div>
 
+          <!-- Budget Progress Charts -->
+          <div class="card mb-3">
+            <div class="card-body">
+              <h5 class="card-title">📊 Budget Progress</h5>
+              <div class="row">
+                {% for person in people %}
+                  <div class="col-md-6 mb-3">
+                    <div class="card p-2">
+                      <h6 class="text-center mb-2">{{ person }}</h6>
+                      <img src="/budget/{{ person }}.png" class="img-fluid" alt="{{ person }} budget progress">
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+            </div>
+          </div>
+
           <div class="card">
             <div class="card-body">
               <h5 class="card-title">This month's expenses</h5>
