@@ -92,7 +92,8 @@ def init_db():
                 category TEXT NOT NULL,
                 amount DECIMAL(10,2) NOT NULL,
                 payer TEXT NOT NULL,
-                notes TEXT
+                notes TEXT,
+                split_with TEXT DEFAULT NULL
             )
             """
         )
@@ -110,7 +111,8 @@ def init_db():
                 category TEXT NOT NULL,
                 amount REAL NOT NULL,
                 payer TEXT NOT NULL,
-                notes TEXT
+                notes TEXT,
+                split_with TEXT DEFAULT NULL
             )
             """
         )
@@ -125,19 +127,38 @@ def get_conn():
         return sqlite3.connect(DB_PATH)
 
 
-def add_expense(tx_date, category, amount, payer, notes):
+def migrate_db():
+    """Add migration for split_with column if it doesn't exist"""
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        if USE_POSTGRES:
+            cur.execute("ALTER TABLE expenses ADD COLUMN IF NOT EXISTS split_with TEXT DEFAULT NULL")
+        else:
+            # Check if column exists for SQLite
+            cur.execute("PRAGMA table_info(expenses)")
+            columns = [row[1] for row in cur.fetchall()]
+            if 'split_with' not in columns:
+                cur.execute("ALTER TABLE expenses ADD COLUMN split_with TEXT DEFAULT NULL")
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        print(f"Migration warning: {e}")
+
+
+def add_expense(tx_date, category, amount, payer, notes, split_with=None):
     conn = get_conn()
     cur = conn.cursor()
     
     if USE_POSTGRES:
         cur.execute(
-            "INSERT INTO expenses (ts, tx_date, category, amount, payer, notes) VALUES (%s, %s, %s, %s, %s, %s)",
-            (datetime.utcnow(), tx_date, category, float(amount), payer, notes),
+            "INSERT INTO expenses (ts, tx_date, category, amount, payer, notes, split_with) VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            (datetime.utcnow(), tx_date, category, float(amount), payer, notes, split_with),
         )
     else:
         cur.execute(
-            "INSERT INTO expenses (ts, tx_date, category, amount, payer, notes) VALUES (?, ?, ?, ?, ?, ?)",
-            (datetime.utcnow().isoformat(timespec="seconds"), tx_date, category, float(amount), payer, notes),
+            "INSERT INTO expenses (ts, tx_date, category, amount, payer, notes, split_with) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (datetime.utcnow().isoformat(timespec="seconds"), tx_date, category, float(amount), payer, notes, split_with),
         )
     
     conn.commit()
@@ -332,6 +353,7 @@ def add():
     payer = request.form.get("payer") or DEFAULT_PEOPLE[0]
     amount = request.form.get("amount") or 0
     notes = request.form.get("notes") or ""
+    split_with = request.form.get("split_with") or None
 
     try:
         if float(amount) <= 0:
@@ -341,7 +363,7 @@ def add():
         flash("Invalid amount", "error")
         return redirect(url_for("index"))
 
-    add_expense(tx_date_val, category, amount, payer, notes)
+    add_expense(tx_date_val, category, amount, payer, notes, split_with)
     flash("Expense added ✅", "success")
     return redirect(url_for("index"))
 
@@ -451,11 +473,32 @@ def budget_progress_png(person):
     
     person_df = df[mask].copy()
     
-    # Calculate spending by category
+    # Calculate spending by category (accounting for splits)
     if person_df.empty:
         spent_by_category = pd.Series([], dtype=float)
     else:
-        spent_by_category = person_df.groupby("category")["amount"].sum()
+        # Calculate actual spending for budget tracking
+        person_df_copy = person_df.copy()
+        
+        # For expenses paid by this person that are split, only count half
+        split_mask = person_df_copy['split_with'].notna()
+        person_df_copy.loc[split_mask, 'amount'] = person_df_copy.loc[split_mask, 'amount'] / 2
+        
+        # Add expenses where this person was split with (they owe half)
+        if not df.empty:
+            # Find expenses where this person was split with
+            other_split_mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & \
+                             (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end)) & \
+                             (df["split_with"] == person)
+            
+            other_split_df = df[other_split_mask].copy()
+            if not other_split_df.empty:
+                # This person owes half of these expenses
+                other_split_df['amount'] = other_split_df['amount'] / 2
+                # Combine both dataframes
+                person_df_copy = pd.concat([person_df_copy, other_split_df], ignore_index=True)
+        
+        spent_by_category = person_df_copy.groupby("category")["amount"].sum()
     
     # Create budget progress chart
     fig, ax = plt.subplots(figsize=(10, 8))
@@ -598,7 +641,26 @@ def budget_dashboard():
             person_df = df[mask].copy()
             
             if not person_df.empty:
-                spent_by_category = person_df.groupby("category")["amount"].sum()
+                # Calculate actual spending for budget tracking (accounting for splits)
+                person_df_copy = person_df.copy()
+                
+                # For expenses paid by this person that are split, only count half
+                split_mask = person_df_copy['split_with'].notna()
+                person_df_copy.loc[split_mask, 'amount'] = person_df_copy.loc[split_mask, 'amount'] / 2
+                
+                # Add expenses where this person was split with (they owe half)
+                other_split_mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & \
+                                 (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end)) & \
+                                 (df["split_with"] == person)
+                
+                other_split_df = df[other_split_mask].copy()
+                if not other_split_df.empty:
+                    # This person owes half of these expenses
+                    other_split_df['amount'] = other_split_df['amount'] / 2
+                    # Combine both dataframes
+                    person_df_copy = pd.concat([person_df_copy, other_split_df], ignore_index=True)
+                
+                spent_by_category = person_df_copy.groupby("category")["amount"].sum()
             else:
                 spent_by_category = pd.Series([], dtype=float)
         else:
@@ -638,6 +700,8 @@ def budget_dashboard():
 if __name__ == "__main__":
     # Initialize database
     init_db()
+    # Run migration for split functionality
+    migrate_db()
     
     # Bind to 0.0.0.0 so iOS devices on the same network can access the server.
     import os
