@@ -1163,45 +1163,54 @@ def budget_dashboard():
     person_budgets = get_user_budgets(current_user)
     print(f"BUDGET DEBUG: User budgets: {person_budgets}")
         
-    if not df.empty:
-        # Filter for current month and current user
-        df["tx_date"] = pd.to_datetime(df["tx_date"]).dt.date
-        print(f"BUDGET DEBUG: Sample dates in df: {df['tx_date'].head().tolist()}")
-        print(f"BUDGET DEBUG: Sample payers in df: {df['payer'].head().tolist()}")
-        
-        mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & \
-               (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end)) & \
-               (df["payer"] == current_user)
-        person_df = df[mask].copy()
-        print(f"BUDGET DEBUG: After filtering - found {len(person_df)} expenses for {current_user}")
-        
-        if not person_df.empty:
-            # Calculate actual spending for budget tracking (accounting for splits)
-            person_df_copy = person_df.copy()
-            
-            # For expenses paid by this user that are split, only count half
-            split_mask = person_df_copy['split_with'].notna()
-            person_df_copy.loc[split_mask, 'amount'] = person_df_copy.loc[split_mask, 'amount'] / 2
-            
-            # Add expenses where this user was split with (they owe half)
-            other_split_mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & \
-                             (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end)) & \
-                             (df["split_with"] == current_user)
-            
-            other_split_df = df[other_split_mask].copy()
-            if not other_split_df.empty:
-                # This user owes half of these expenses
-                other_split_df['amount'] = other_split_df['amount'] / 2
-                # Combine both dataframes
-                person_df_copy = pd.concat([person_df_copy, other_split_df], ignore_index=True)
-            
-            spent_by_category = person_df_copy.groupby("category")["amount"].sum()
-        else:
-            spent_by_category = pd.Series([], dtype=float)
-    else:
-        spent_by_category = pd.Series([], dtype=float)
+    # Simplified expense calculation
+    spent_by_category = {}
     
-    print(f"BUDGET DEBUG: Spending by category: {spent_by_category.to_dict() if hasattr(spent_by_category, 'to_dict') else spent_by_category}")
+    if not df.empty:
+        print(f"BUDGET DEBUG: Raw data - first few rows:")
+        print(f"BUDGET DEBUG: Dates: {df['tx_date'].head().tolist()}")
+        print(f"BUDGET DEBUG: Payers: {df['payer'].head().tolist()}")
+        print(f"BUDGET DEBUG: Categories: {df['category'].head().tolist()}")
+        
+        # Convert dates more reliably
+        try:
+            df["tx_date_parsed"] = pd.to_datetime(df["tx_date"]).dt.date
+        except:
+            # If datetime parsing fails, try string parsing
+            df["tx_date_parsed"] = df["tx_date"].apply(lambda x: 
+                datetime.strptime(str(x)[:10], "%Y-%m-%d").date() if isinstance(x, str) 
+                else x if hasattr(x, 'year') 
+                else date.today())
+        
+        print(f"BUDGET DEBUG: Parsed dates: {df['tx_date_parsed'].head().tolist()}")
+        
+        # Simple filtering - current month and current user
+        current_month_expenses = df[
+            (df['tx_date_parsed'] >= month_start) & 
+            (df['tx_date_parsed'] < month_end) & 
+            (df['payer'] == current_user)
+        ].copy()
+        
+        print(f"BUDGET DEBUG: Found {len(current_month_expenses)} expenses for {current_user} this month")
+        
+        if not current_month_expenses.empty:
+            print(f"BUDGET DEBUG: Current month expenses:")
+            for _, expense in current_month_expenses.iterrows():
+                print(f"  - {expense['tx_date_parsed']}: ₪{expense['amount']} ({expense['category']})")
+            
+            # Simple spending calculation (ignore splits for now to debug)
+            for _, expense in current_month_expenses.iterrows():
+                category = expense['category']
+                amount = float(expense['amount'])
+                
+                if category in spent_by_category:
+                    spent_by_category[category] += amount
+                else:
+                    spent_by_category[category] = amount
+        
+        print(f"BUDGET DEBUG: Calculated spending by category: {spent_by_category}")
+    else:
+        print("BUDGET DEBUG: No expenses found in database")
     
     # Calculate budget status for each category for current user
     for category, budget_limit in person_budgets.items():
