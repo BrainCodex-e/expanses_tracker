@@ -660,7 +660,7 @@ def budget_progress_png(person):
     print(f"DEBUG: Filtering for {person} from {month_start} to {month_end}")
     mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & \
            (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end)) & \
-           (df["payer"] == person)
+           (df["payer"].str.lower() == person.lower())
     
     person_df = df[mask].copy()
     print(f"DEBUG: Found {len(person_df)} expenses for {person} this month")
@@ -681,7 +681,7 @@ def budget_progress_png(person):
             # Find expenses where this person was split with
             other_split_mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & \
                              (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end)) & \
-                             (df["split_with"] == person)
+                             (df["split_with"].str.lower() == person.lower())
             
             other_split_df = df[other_split_mask].copy()
             if not other_split_df.empty:
