@@ -446,7 +446,10 @@
           isDragging = false;
           hasMovedHorizontally = false;
           startTime = Date.now();
-          card.style.transition = 'none';
+          
+          // Disable transitions during drag
+          const expenseContent = card.querySelector('.expense-content');
+          expenseContent.style.transition = 'none';
         }, { passive: false });
 
         // Touch move
@@ -469,28 +472,31 @@
             currentX = e.touches[0].clientX;
             const deltaX = currentX - startX;
             
+            // Get the expense content element to transform
+            const expenseContent = card.querySelector('.expense-content');
+            
             // Only allow left swipe (negative deltaX)
             if (deltaX < 0) {
-              const maxSwipe = -100; // Maximum swipe distance
+              const maxSwipe = -90; // Maximum swipe distance
               const actualDelta = Math.max(deltaX, maxSwipe);
-              card.style.transform = `translateX(${actualDelta}px)`;
+              expenseContent.style.transform = `translateX(${actualDelta}px)`;
               
               console.log('Swiping:', actualDelta);
               
               // Show delete button when swiped enough
-              if (actualDelta <= -60 && !card.classList.contains('delete-visible')) {
+              if (actualDelta <= -50 && !card.classList.contains('delete-visible')) {
                 card.classList.add('delete-visible');
                 console.log('Delete visible for card', index);
                 // Haptic feedback when delete becomes available
                 if ('vibrate' in navigator) {
                   navigator.vibrate(30);
                 }
-              } else if (actualDelta > -60) {
+              } else if (actualDelta > -50) {
                 card.classList.remove('delete-visible');
               }
             } else if (deltaX > 5) {
               // Small right swipe resets
-              card.style.transform = 'translateX(0)';
+              expenseContent.style.transform = 'translateX(0)';
               card.classList.remove('delete-visible');
             }
           }
@@ -499,19 +505,20 @@
         // Touch end
         card.addEventListener('touchend', function(e) {
           console.log('Touch end on card', index, 'isDragging:', isDragging);
-          card.style.transition = 'transform 0.3s ease';
+          const expenseContent = card.querySelector('.expense-content');
+          expenseContent.style.transition = 'transform 0.3s ease';
           const deltaX = currentX - startX;
           const swipeTime = Date.now() - startTime;
           
           if (isDragging && hasMovedHorizontally) {
             // Reset if not swiped enough
-            if (deltaX > -60 || swipeTime < 50) {
-              card.style.transform = 'translateX(0)';
+            if (deltaX > -50 || swipeTime < 50) {
+              expenseContent.style.transform = 'translateX(0)';
               card.classList.remove('delete-visible');
               console.log('Resetting swipe for card', index);
             } else {
               // Keep delete button visible
-              card.style.transform = 'translateX(-100px)';
+              expenseContent.style.transform = 'translateX(-90px)';
               card.classList.add('delete-visible');
               console.log('Keeping delete visible for card', index);
             }
@@ -544,7 +551,8 @@
         // Reset swipe when tapping elsewhere
         document.addEventListener('touchstart', function(e) {
           if (!card.contains(e.target) && card.classList.contains('delete-visible')) {
-            card.style.transform = 'translateX(0)';
+            const expenseContent = card.querySelector('.expense-content');
+            expenseContent.style.transform = 'translateX(0)';
             card.classList.remove('delete-visible');
           }
         }, { passive: true });

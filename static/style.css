@@ -25,7 +25,7 @@ body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvet
 /* Mobile Expense Cards */
 .expense-card {
   position: relative;
-  background: #fff;
+  background: #dc3545; /* Red background shows through when swiped */
   border: 1px solid #dee2e6;
   border-radius: 8px;
   overflow: hidden;
@@ -39,40 +39,42 @@ body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvet
   background: #fff;
   position: relative;
   z-index: 2;
+  width: 100%;
+  transition: transform 0.3s ease;
 }
 
 .delete-action {
   position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 100px;
-  background: #dc3545;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 80px;
+  height: 40px;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1;
-  transform: translateX(100px); /* Initially hidden */
-  transition: transform 0.3s ease;
+  pointer-events: none; /* Initially not clickable */
 }
 
 .delete-action .btn {
   border: none;
-  background: transparent;
+  background: rgba(255,255,255,0.2);
   color: white;
-  font-size: 14px;
-  padding: 8px 12px;
-  min-height: 44px; /* Better touch target */
-  width: 100%;
+  font-size: 12px;
+  padding: 6px 12px;
+  border-radius: 4px;
   font-weight: bold;
+  backdrop-filter: blur(4px);
 }
 
 .expense-card.delete-visible .expense-content {
+  transform: translateX(-90px); /* Slide content left to reveal delete */
   box-shadow: -2px 0 8px rgba(0,0,0,0.15);
 }
 
 .expense-card.delete-visible .delete-action {
-  transform: translateX(0); /* Show delete button when swiped */
+  pointer-events: auto; /* Make delete button clickable when visible */
 }
 
 /* Smooth transitions */
@@ -112,14 +114,7 @@ body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvet
     align-items: center;
   }
   
-  /* Debug border for development */
-  .expense-card {
-    border: 2px solid #007bff !important;
-  }
-  
-  .delete-action {
-    border: 2px solid #28a745 !important;
-  }
+  /* Remove debug borders */
 }
 
 /* Visual feedback for successful actions */
