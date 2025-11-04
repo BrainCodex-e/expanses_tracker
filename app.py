@@ -238,12 +238,14 @@ def get_user_budgets(username):
         
         conn.close()
         
-        # Fallback to hardcoded limits if no database records found
-        if not budgets and username in BUDGET_LIMITS:
-            print(f"DEBUG: No database records for {username}, using hardcoded fallback")
-            budgets = BUDGET_LIMITS[username].copy()
+        # Always merge with hardcoded defaults to ensure all categories are populated
+        final_budgets = {}
+        if username in BUDGET_LIMITS:
+            final_budgets.update(BUDGET_LIMITS[username])
+        final_budgets.update(budgets)  # Database values override hardcoded ones
         
-        return budgets
+        print(f"DEBUG: Final budget data for {username}: {final_budgets}")
+        return final_budgets
         
     except Exception as e:
         print(f"ERROR getting user budgets for {username}: {e}")
@@ -296,42 +298,42 @@ def delete_user_budget(username, category):
 def migrate_budget_limits_to_db():
     """Migrate hardcoded BUDGET_LIMITS to database (run once)"""
     try:
-        # Check if we already have data in the database
-        conn = get_conn()
-        cur = conn.cursor()
+        print("Starting budget migration check...")
         
-        if USE_POSTGRES:
-            cur.execute("SELECT COUNT(*) FROM user_budgets")
-        else:
-            cur.execute("SELECT COUNT(*) FROM user_budgets")
-        
-        count = cur.fetchone()[0]
-        conn.close()
-        
-        # Only migrate if database is empty
-        if count == 0:
-            print("Migrating budget limits to database...")
-            for username, categories in BUDGET_LIMITS.items():
+        # Check each user individually and migrate if they don't have records
+        for username, categories in BUDGET_LIMITS.items():
+            conn = get_conn()
+            cur = conn.cursor()
+            
+            if USE_POSTGRES:
+                cur.execute("SELECT COUNT(*) FROM user_budgets WHERE username = %s", (username,))
+            else:
+                cur.execute("SELECT COUNT(*) FROM user_budgets WHERE username = ?", (username,))
+            
+            count = cur.fetchone()[0]
+            conn.close()
+            
+            if count == 0:
+                print(f"Migrating budget limits for {username}...")
                 for category, limit in categories.items():
                     try:
                         set_user_budget(username, category, limit)
                         print(f"✓ Migrated {username}/{category}: ₪{limit}")
                     except Exception as e:
                         print(f"✗ Error migrating budget for {username}/{category}: {e}")
-            print("Budget migration completed!")
-        else:
-            print(f"Database already contains {count} budget records, skipping migration.")
+            else:
+                print(f"User {username} already has {count} budget records in database")
             
     except Exception as e:
-        print(f"Migration check failed: {e}")
-        # Try to migrate anyway in case of database issues
-        print("Attempting migration regardless...")
+        print(f"Migration failed: {e}")
+        # Try to migrate anyway
+        print("Attempting emergency migration...")
         for username, categories in BUDGET_LIMITS.items():
             for category, limit in categories.items():
                 try:
                     set_user_budget(username, category, limit)
                 except Exception as e:
-                    print(f"Error migrating budget for {username}/{category}: {e}")
+                    print(f"Error in emergency migration for {username}/{category}: {e}")
 
 
 app = Flask(__name__)
