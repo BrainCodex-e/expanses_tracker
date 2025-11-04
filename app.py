@@ -784,6 +784,66 @@ def update_budget():
     return redirect(url_for("index"))
 
 
+@app.route("/debug/expenses")
+@login_required
+def debug_expenses():
+    """Debug route to show all expenses and help troubleshoot"""
+    df = load_expenses()
+    current_user = session.get('user')
+    
+    if df.empty:
+        return f"<h1>No expenses found in database</h1><p>User: {current_user}</p>"
+    
+    # Convert dates for analysis
+    df["tx_date"] = pd.to_datetime(df["tx_date"]).dt.date
+    
+    # Current month filtering
+    today = date.today()
+    month_start = date(today.year, today.month, 1)
+    month_end = date(today.year if today.month < 12 else today.year + 1, 
+                    today.month + 1 if today.month < 12 else 1, 1)
+    
+    current_month_mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & \
+                        (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end))
+    
+    user_expenses = df[df["payer"] == current_user]
+    user_current_month = df[current_month_mask & (df["payer"] == current_user)]
+    
+    html = f"""
+    <h1>Expense Debug Info</h1>
+    <p><strong>Current User:</strong> {current_user}</p>
+    <p><strong>Current Date:</strong> {today}</p>
+    <p><strong>Month Range:</strong> {month_start} to {month_end}</p>
+    <hr>
+    <p><strong>Total Expenses in DB:</strong> {len(df)}</p>
+    <p><strong>Your Total Expenses:</strong> {len(user_expenses)}</p>
+    <p><strong>Your Current Month Expenses:</strong> {len(user_current_month)}</p>
+    <hr>
+    <h3>All Expenses:</h3>
+    <table border="1">
+        <tr><th>ID</th><th>Date</th><th>Category</th><th>Amount</th><th>Payer</th><th>Split</th></tr>
+    """
+    
+    for _, row in df.iterrows():
+        html += f"""
+        <tr>
+            <td>{row['id']}</td>
+            <td>{row['tx_date']}</td>
+            <td>{row['category']}</td>
+            <td>₪{row['amount']}</td>
+            <td>{row['payer']}</td>
+            <td>{row.get('split_with', 'No')}</td>
+        </tr>
+        """
+    
+    html += """
+    </table>
+    <p><a href="/">← Back to Dashboard</a></p>
+    """
+    
+    return html
+
+
 @app.route("/budget/dashboard")
 @login_required  
 def budget_dashboard():
