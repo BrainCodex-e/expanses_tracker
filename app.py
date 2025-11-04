@@ -97,6 +97,20 @@ def init_db():
             )
             """
         )
+        # Create user_budgets table for persistent budget storage
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_budgets (
+                id SERIAL PRIMARY KEY,
+                username TEXT NOT NULL,
+                category TEXT NOT NULL,
+                budget_limit DECIMAL(10,2) NOT NULL,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(username, category)
+            )
+            """
+        )
         conn.commit()
         conn.close()
     else:
@@ -113,6 +127,20 @@ def init_db():
                 payer TEXT NOT NULL,
                 notes TEXT,
                 split_with TEXT DEFAULT NULL
+            )
+            """
+        )
+        # Create user_budgets table for persistent budget storage
+        cur.execute(
+            """
+            CREATE TABLE IF NOT EXISTS user_budgets (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL,
+                category TEXT NOT NULL,
+                budget_limit REAL NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(username, category)
             )
             """
         )
@@ -188,11 +216,86 @@ def delete_row(row_id):
     conn.close()
 
 
+def get_user_budgets(username):
+    """Get all budget limits for a specific user from database"""
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    if USE_POSTGRES:
+        cur.execute("SELECT category, budget_limit FROM user_budgets WHERE username = %s", (username,))
+    else:
+        cur.execute("SELECT category, budget_limit FROM user_budgets WHERE username = ?", (username,))
+    
+    budgets = {}
+    for row in cur.fetchall():
+        category, budget_limit = row
+        budgets[category] = float(budget_limit)
+    
+    conn.close()
+    return budgets
+
+
+def set_user_budget(username, category, budget_limit):
+    """Set or update a budget limit for a user and category"""
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    if USE_POSTGRES:
+        cur.execute(
+            """
+            INSERT INTO user_budgets (username, category, budget_limit, updated_at) 
+            VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
+            ON CONFLICT (username, category) 
+            DO UPDATE SET budget_limit = EXCLUDED.budget_limit, updated_at = CURRENT_TIMESTAMP
+            """,
+            (username, category, float(budget_limit))
+        )
+    else:
+        cur.execute(
+            """
+            INSERT OR REPLACE INTO user_budgets (username, category, budget_limit, updated_at) 
+            VALUES (?, ?, ?, datetime('now'))
+            """,
+            (username, category, float(budget_limit))
+        )
+    
+    conn.commit()
+    conn.close()
+
+
+def delete_user_budget(username, category):
+    """Delete a budget limit for a user and category"""
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    if USE_POSTGRES:
+        cur.execute("DELETE FROM user_budgets WHERE username = %s AND category = %s", (username, category))
+    else:
+        cur.execute("DELETE FROM user_budgets WHERE username = ? AND category = ?", (username, category))
+    
+    conn.commit()
+    conn.close()
+
+
+def migrate_budget_limits_to_db():
+    """Migrate hardcoded BUDGET_LIMITS to database (run once)"""
+    for username, categories in BUDGET_LIMITS.items():
+        for category, limit in categories.items():
+            try:
+                set_user_budget(username, category, limit)
+            except Exception as e:
+                print(f"Error migrating budget for {username}/{category}: {e}")
+
+
 app = Flask(__name__)
 app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-for-flash")
 
 # Initialize database on app startup
 init_db()
+# Run database migrations
+migrate_db()
+# Migrate hardcoded budget data to database (one-time migration)
+migrate_budget_limits_to_db()
 
 # Session cookie hardening (can be disabled for local non-HTTPS testing by setting SESSION_COOKIE_SECURE=0)
 secure_cookies = os.environ.get("SESSION_COOKIE_SECURE", "1") != "0"
@@ -508,8 +611,8 @@ def budget_progress_png(person):
     remaining_amounts = []
     colors = []
     
-    # Get person-specific budget limits
-    person_budgets = BUDGET_LIMITS.get(person, {})
+    # Get person-specific budget limits from database
+    person_budgets = get_user_budgets(person)
     
     for category, budget_limit in person_budgets.items():
         spent = spent_by_category.get(category, 0)
@@ -576,8 +679,8 @@ def budget_settings():
         flash("Please log in to manage your budget", "error")
         return redirect(url_for("login"))
     
-    # Only show current user's budget limits
-    user_budget_limits = BUDGET_LIMITS.get(current_user, {})
+    # Only show current user's budget limits from database
+    user_budget_limits = get_user_budgets(current_user)
     
     return render_template("budget_settings.html", 
                          budget_limits=user_budget_limits, 
@@ -589,31 +692,25 @@ def budget_settings():
 @login_required
 def update_budget():
     """Update budget limits for current user only"""
-    global BUDGET_LIMITS
-    
     current_user = session.get('user')
     if not current_user:
         flash("Please log in to manage your budget", "error")
         return redirect(url_for("login"))
     
-    # Ensure current user exists in BUDGET_LIMITS
-    if current_user not in BUDGET_LIMITS:
-        BUDGET_LIMITS[current_user] = {}
-    
-    # Update only current user's budget limits
+    # Update only current user's budget limits in database
     for category in CATEGORIES:
         budget_value = request.form.get(f"budget_{category}")
         if budget_value:
             try:
                 budget_amount = float(budget_value)
                 if budget_amount >= 0:  # Only allow non-negative budgets
-                    BUDGET_LIMITS[current_user][category] = budget_amount
+                    set_user_budget(current_user, category, budget_amount)
             except (ValueError, TypeError):
                 flash(f"Invalid budget amount for {category}", "error")
                 return redirect(url_for("budget_settings"))
         else:
             # Remove budget limit if field is empty
-            BUDGET_LIMITS[current_user].pop(category, None)
+            delete_user_budget(current_user, category)
     
     flash("Budget limits updated successfully!", "success")
     return redirect(url_for("index"))
@@ -645,7 +742,7 @@ def budget_dashboard():
     
     # Only process current user's data
     budget_status[current_user] = {}
-    person_budgets = BUDGET_LIMITS.get(current_user, {})
+    person_budgets = get_user_budgets(current_user)
         
     if not df.empty:
         # Filter for current month and current user
