@@ -29,7 +29,9 @@ body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvet
   border: 1px solid #dee2e6;
   border-radius: 8px;
   overflow: hidden;
-  touch-action: pan-y; /* Allow vertical scrolling but handle horizontal gestures */
+  touch-action: manipulation; /* Better touch handling for gestures */
+  user-select: none;
+  -webkit-user-select: none;
 }
 
 .expense-content {
@@ -44,24 +46,33 @@ body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvet
   right: 0;
   top: 0;
   bottom: 0;
-  width: 80px;
+  width: 100px;
   background: #dc3545;
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1;
+  transform: translateX(100px); /* Initially hidden */
+  transition: transform 0.3s ease;
 }
 
 .delete-action .btn {
   border: none;
   background: transparent;
   color: white;
-  font-size: 12px;
-  padding: 4px 8px;
+  font-size: 14px;
+  padding: 8px 12px;
+  min-height: 44px; /* Better touch target */
+  width: 100%;
+  font-weight: bold;
 }
 
 .expense-card.delete-visible .expense-content {
   box-shadow: -2px 0 8px rgba(0,0,0,0.15);
+}
+
+.expense-card.delete-visible .delete-action {
+  transform: translateX(0); /* Show delete button when swiped */
 }
 
 /* Smooth transitions */
@@ -91,16 +102,23 @@ body { font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, "Helvet
   
   .expense-card {
     margin-bottom: 8px;
+    min-height: 80px; /* Ensure minimum height for touch */
   }
   
   .expense-content {
     padding: 16px;
+    min-height: 80px; /* Match card height */
+    display: flex;
+    align-items: center;
   }
   
-  /* Larger touch target for delete */
-  .delete-action .btn {
-    min-height: 40px;
-    width: 100%;
+  /* Debug border for development */
+  .expense-card {
+    border: 2px solid #007bff !important;
+  }
+  
+  .delete-action {
+    border: 2px solid #28a745 !important;
   }
 }
 
