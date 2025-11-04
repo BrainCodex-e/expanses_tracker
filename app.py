@@ -788,6 +788,126 @@ def update_budget():
     return redirect(url_for("index"))
 
 
+@app.route("/test/add")
+@login_required
+def test_add():
+    """Test adding an expense directly"""
+    try:
+        current_user = session.get('user')
+        today = date.today().isoformat()
+        
+        # Add a test expense
+        add_expense(today, "Food: Groceries", 99.99, current_user, "TEST EXPENSE", None)
+        
+        # Immediately check if it was saved
+        df = load_expenses()
+        latest = df.head(1) if not df.empty else None
+        
+        html = f"""
+        <h1>Test Expense Added</h1>
+        <p><strong>Added:</strong> ₪99.99 for {current_user} on {today}</p>
+        <p><strong>Total expenses now:</strong> {len(df)}</p>
+        
+        <h3>Latest Expense in Database:</h3>
+        """
+        
+        if latest is not None:
+            row = latest.iloc[0]
+            html += f"""
+            <table border="1">
+                <tr><th>ID</th><td>{row['id']}</td></tr>
+                <tr><th>Date</th><td>{row['tx_date']}</td></tr>
+                <tr><th>Category</th><td>{row['category']}</td></tr>
+                <tr><th>Amount</th><td>₪{row['amount']}</td></tr>
+                <tr><th>Payer</th><td>{row['payer']}</td></tr>
+            </table>
+            """
+        else:
+            html += "<p><strong>ERROR:</strong> No expenses found after adding!</p>"
+        
+        html += """
+        <p><a href="/test/db">→ View All Data</a></p>
+        <p><a href="/budget/dashboard">→ Check Budget Dashboard</a></p>
+        <p><a href="/">→ Back to Main</a></p>
+        """
+        
+        return html
+        
+    except Exception as e:
+        return f"<h1>Test Error</h1><p>Error: {str(e)}</p><p><a href='/'>← Back</a></p>"
+
+
+@app.route("/test/db")
+@login_required
+def test_db():
+    """Simple test to verify database operations"""
+    try:
+        # Test database connection
+        conn = get_conn()
+        cur = conn.cursor()
+        
+        # Count total records
+        if USE_POSTGRES:
+            cur.execute("SELECT COUNT(*) FROM expenses")
+        else:
+            cur.execute("SELECT COUNT(*) FROM expenses")
+        
+        total_count = cur.fetchone()[0]
+        
+        # Get latest 5 records
+        if USE_POSTGRES:
+            cur.execute("SELECT id, tx_date, category, amount, payer, split_with FROM expenses ORDER BY id DESC LIMIT 5")
+        else:
+            cur.execute("SELECT id, tx_date, category, amount, payer, split_with FROM expenses ORDER BY id DESC LIMIT 5")
+        
+        latest_expenses = cur.fetchall()
+        conn.close()
+        
+        # Current user and date info
+        current_user = session.get('user')
+        today = date.today()
+        
+        html = f"""
+        <h1>Database Test Results</h1>
+        <p><strong>Database Type:</strong> {'PostgreSQL' if USE_POSTGRES else 'SQLite'}</p>
+        <p><strong>Current User:</strong> {current_user}</p>
+        <p><strong>Current Date:</strong> {today}</p>
+        <p><strong>Total Expenses in DB:</strong> {total_count}</p>
+        
+        <h3>Latest 5 Expenses (Raw Database Data):</h3>
+        <table border="1" style="border-collapse: collapse;">
+            <tr>
+                <th>ID</th><th>Date</th><th>Category</th><th>Amount</th><th>Payer</th><th>Split With</th>
+            </tr>
+        """
+        
+        for expense in latest_expenses:
+            html += f"""
+            <tr>
+                <td>{expense[0]}</td>
+                <td>{expense[1]}</td>
+                <td>{expense[2]}</td>
+                <td>₪{expense[3]}</td>
+                <td>{expense[4]}</td>
+                <td>{expense[5] if expense[5] else 'None'}</td>
+            </tr>
+            """
+        
+        html += """
+        </table>
+        
+        <h3>Quick Actions:</h3>
+        <p><a href="/debug/expenses">→ Full Debug View</a></p>
+        <p><a href="/">→ Add New Expense</a></p>
+        <p><a href="/budget/dashboard">→ Budget Dashboard</a></p>
+        """
+        
+        return html
+        
+    except Exception as e:
+        return f"<h1>Database Error</h1><p>Error: {str(e)}</p><p><a href='/'>← Back</a></p>"
+
+
 @app.route("/debug/expenses")
 @login_required
 def debug_expenses():
