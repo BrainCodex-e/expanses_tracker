@@ -54,7 +54,7 @@ DEFAULT_PEOPLE = ["Erez", "Lia"]
 
 # Budget limits per person per category (in ₪)
 BUDGET_LIMITS = {
-    "Erez": {
+    "erez": {
         "Food: Groceries": 500,
         "Food: Meat": 300,
         "Food: Eating Out / Wolt": 400,
@@ -65,7 +65,7 @@ BUDGET_LIMITS = {
         "Gifts / Events": 200,
         "Misc": 150,
     },
-    "Lia": {
+    "lia": {
         "Food: Groceries": 500,
         "Food: Meat": 300,
         "Food: Eating Out / Wolt": 400,
@@ -786,6 +786,40 @@ def update_budget():
     
     flash("Budget limits updated successfully!", "success")
     return redirect(url_for("index"))
+
+
+@app.route("/status")
+def status():
+    """Simple status check - no login required"""
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        
+        if USE_POSTGRES:
+            cur.execute("SELECT COUNT(*) FROM expenses")
+        else:
+            cur.execute("SELECT COUNT(*) FROM expenses")
+        
+        count = cur.fetchone()[0]
+        conn.close()
+        
+        return f"""
+        <h1>App Status</h1>
+        <p>✅ Database connection: OK</p>
+        <p>📊 Total expenses: {count}</p>
+        <p>🗄️ Database type: {'PostgreSQL' if USE_POSTGRES else 'SQLite'}</p>
+        <p>📅 Current date: {date.today()}</p>
+        <hr>
+        <p><a href="/logs/budget">→ Detailed Budget Logs (login required)</a></p>
+        <p><a href="/">→ Main App</a></p>
+        """
+        
+    except Exception as e:
+        return f"""
+        <h1>App Status</h1>
+        <p>❌ Error: {str(e)}</p>
+        <p><a href="/">→ Main App</a></p>
+        """
 
 
 @app.route("/logs/budget")
