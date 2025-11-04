@@ -788,6 +788,72 @@ def update_budget():
     return redirect(url_for("index"))
 
 
+@app.route("/logs/budget")
+@login_required
+def logs_budget():
+    """Show budget calculation step by step"""
+    current_user = session.get('user')
+    logs = []
+    
+    # Step 1: Load expenses
+    df = load_expenses()
+    logs.append(f"✓ Loaded {len(df)} total expenses from database")
+    
+    # Step 2: Date filtering setup
+    today = date.today()
+    month_start = date(today.year, today.month, 1)
+    month_end = date(today.year if today.month < 12 else today.year + 1, 
+                    today.month + 1 if today.month < 12 else 1, 1)
+    logs.append(f"✓ Current user: {current_user}")
+    logs.append(f"✓ Date range: {month_start} to {month_end}")
+    
+    # Step 3: Budget limits
+    person_budgets = get_user_budgets(current_user)
+    logs.append(f"✓ User budget limits: {len(person_budgets)} categories")
+    for cat, amt in person_budgets.items():
+        logs.append(f"  - {cat}: ₪{amt}")
+    
+    # Step 4: Filter expenses
+    if not df.empty:
+        df["tx_date"] = pd.to_datetime(df["tx_date"]).dt.date
+        logs.append(f"✓ Sample dates: {df['tx_date'].head(3).tolist()}")
+        logs.append(f"✓ Sample payers: {df['payer'].head(3).tolist()}")
+        
+        mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & \
+               (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end)) & \
+               (df["payer"] == current_user)
+        person_df = df[mask].copy()
+        logs.append(f"✓ Filtered expenses: {len(person_df)} for {current_user} this month")
+        
+        if not person_df.empty:
+            logs.append("✓ Your expenses this month:")
+            for _, row in person_df.iterrows():
+                logs.append(f"  - {row['tx_date']}: ₪{row['amount']} ({row['category']})")
+        else:
+            logs.append("❌ No expenses found for current user this month!")
+    else:
+        logs.append("❌ No expenses in database at all!")
+    
+    # Format as HTML
+    html = f"""
+    <h1>Budget Calculation Debug Log</h1>
+    <p><strong>Time:</strong> {datetime.now()}</p>
+    <pre>
+"""
+    for log in logs:
+        html += f"{log}\n"
+    
+    html += """
+    </pre>
+    <h3>Quick Actions:</h3>
+    <p><a href="/test/add">→ Add Test Expense</a></p>
+    <p><a href="/budget/dashboard">→ Budget Dashboard</a></p>
+    <p><a href="/">→ Main Dashboard</a></p>
+    """
+    
+    return html
+
+
 @app.route("/test/add")
 @login_required
 def test_add():
