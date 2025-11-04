@@ -46,8 +46,9 @@ CATEGORIES = [
     "Transport",
     "Health / Beauty",
     "Gifts / Events",
-    "Misc",
+    "שונות ומשונות",
     "Arnoni",
+    "School Expenses",
 ]
 # Keep these as backend constants for now, but they could be made configurable
 DEFAULT_PEOPLE = ["Erez", "Lia"]
