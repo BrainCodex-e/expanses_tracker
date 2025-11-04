@@ -41,9 +41,59 @@
 
       <div class="row">
         <div class="col-md-4">
+          <!-- Quick Add Buttons -->
           <div class="card mb-3">
             <div class="card-body">
-              <h5 class="card-title">➕ Add expense</h5>
+              <h5 class="card-title">⚡ Quick Add</h5>
+              <div class="row g-2 mb-3">
+                <div class="col-6 col-md-4">
+                  <button class="btn btn-outline-primary btn-sm w-100 quick-add-btn" 
+                          data-category="Food: Eating Out / Wolt" data-amount="25" data-notes="Coffee">
+                    ☕ Coffee<br><small>₪25</small>
+                  </button>
+                </div>
+                <div class="col-6 col-md-4">
+                  <button class="btn btn-outline-primary btn-sm w-100 quick-add-btn"
+                          data-category="Food: Eating Out / Wolt" data-amount="60" data-notes="Lunch">
+                    🍽️ Lunch<br><small>₪60</small>
+                  </button>
+                </div>
+                <div class="col-6 col-md-4">
+                  <button class="btn btn-outline-primary btn-sm w-100 quick-add-btn"
+                          data-category="Transport" data-amount="20" data-notes="Gas">
+                    ⛽ Gas<br><small>₪20</small>
+                  </button>
+                </div>
+                <div class="col-6 col-md-4">
+                  <button class="btn btn-outline-primary btn-sm w-100 quick-add-btn"
+                          data-category="Food: Groceries" data-amount="100" data-notes="Groceries">
+                    🛒 Groceries<br><small>₪100</small>
+                  </button>
+                </div>
+                <div class="col-6 col-md-4">
+                  <button class="btn btn-outline-primary btn-sm w-100 quick-add-btn"
+                          data-category="Transport" data-amount="15" data-notes="Parking">
+                    🅿️ Parking<br><small>₪15</small>
+                  </button>
+                </div>
+                <div class="col-6 col-md-4">
+                  <button class="btn btn-outline-primary btn-sm w-100 quick-add-btn"
+                          data-category="Food: Eating Out / Wolt" data-amount="35" data-notes="Snack">
+                    🍎 Snack<br><small>₪35</small>
+                  </button>
+                </div>
+              </div>
+              <div class="text-center">
+                <button class="btn btn-outline-secondary btn-sm" id="show-full-form">
+                  📝 Custom Amount
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <div class="card mb-3" id="full-form-card" style="display: none;">
+            <div class="card-body">
+              <h5 class="card-title">➕ Add Custom Expense</h5>
               <form action="/add" method="post">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="mb-2">
@@ -86,7 +136,10 @@
                   <label class="form-label">Notes</label>
                   <input type="text" name="notes" class="form-control">
                 </div>
-                <button class="btn btn-primary">Add expense</button>
+                <div class="d-grid gap-2 d-md-flex">
+                  <button class="btn btn-primary">Add Expense</button>
+                  <button type="button" class="btn btn-outline-secondary" id="hide-full-form">Cancel</button>
+                </div>
               </form>
             </div>
           </div>
@@ -174,8 +227,47 @@
 
           <div class="card">
             <div class="card-body">
-              <h5 class="card-title">This month's expenses</h5>
-              <div class="table-responsive">
+              <div class="d-flex justify-content-between align-items-center mb-3">
+                <h5 class="card-title mb-0">This month's expenses</h5>
+                <small class="text-muted d-md-none">👈 Swipe left to delete</small>
+              </div>
+              
+              <!-- Mobile Card View (Hidden on larger screens) -->
+              <div class="d-md-none">
+                {% for r in records %}
+                  <div class="expense-card mb-2" data-expense-id="{{ r.id }}">
+                    <div class="expense-content">
+                      <div class="d-flex justify-content-between align-items-start">
+                        <div class="flex-grow-1">
+                          <div class="fw-bold">{{ r.category }}</div>
+                          <div class="text-muted small">{{ r.tx_date }} • {{ r.payer }}</div>
+                          {% if r.notes %}
+                            <div class="text-muted small">{{ r.notes }}</div>
+                          {% endif %}
+                          {% if r.split_with %}
+                            <span class="badge bg-info mt-1">50/50 with {{ r.split_with }}</span>
+                          {% endif %}
+                        </div>
+                        <div class="fw-bold text-end">
+                          ₪{{ r.amount }}
+                        </div>
+                      </div>
+                    </div>
+                    <div class="delete-action">
+                      <form method="post" action="/delete" class="delete-form">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="row_id" value="{{ r.id }}">
+                        <button type="submit" class="btn btn-danger btn-sm">
+                          🗑️ Delete
+                        </button>
+                      </form>
+                    </div>
+                  </div>
+                {% endfor %}
+              </div>
+
+              <!-- Desktop Table View (Hidden on mobile) -->
+              <div class="table-responsive d-none d-md-block">
                 <table class="table table-sm">
                   <thead>
                     <tr>
@@ -224,6 +316,7 @@
     </div>
   </body>
   <script>
+    // Service Worker Registration
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', function() {
         navigator.serviceWorker.register('/static/sw.js').then(function(reg) {
@@ -231,5 +324,203 @@
         }).catch(function(err) { console.log('SW register failed: ', err); });
       });
     }
+
+    // Quick Add Functionality
+    document.addEventListener('DOMContentLoaded', function() {
+      const quickAddBtns = document.querySelectorAll('.quick-add-btn');
+      const showFormBtn = document.getElementById('show-full-form');
+      const hideFormBtn = document.getElementById('hide-full-form');
+      const fullFormCard = document.getElementById('full-form-card');
+
+      // Quick Add Button Handlers
+      quickAddBtns.forEach(btn => {
+        btn.addEventListener('click', async function() {
+          const category = this.dataset.category;
+          const amount = this.dataset.amount;
+          const notes = this.dataset.notes;
+          
+          // Visual feedback - start
+          const originalContent = this.innerHTML;
+          this.classList.add('btn-success');
+          this.disabled = true;
+          this.innerHTML = '✅ Adding...';
+          
+          try {
+            // Use fetch for quick add
+            const formData = new FormData();
+            formData.append('csrf_token', '{{ csrf_token() }}');
+            formData.append('category', category);
+            formData.append('amount', amount);
+            formData.append('notes', notes);
+            
+            const response = await fetch('/quick-add', {
+              method: 'POST',
+              body: formData
+            });
+            
+            const result = await response.json();
+            
+            if (result.success) {
+              // Haptic feedback for supported devices
+              if ('vibrate' in navigator) {
+                navigator.vibrate(50); // Short success vibration
+              }
+              
+              // Success feedback
+              this.innerHTML = '✅ Added!';
+              
+              // Show success message
+              const alertDiv = document.createElement('div');
+              alertDiv.className = 'alert alert-success alert-dismissible fade show';
+              alertDiv.innerHTML = `
+                ${result.message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+              `;
+              
+              // Insert at top of page
+              const container = document.querySelector('.container');
+              container.insertBefore(alertDiv, container.firstChild);
+              
+              // Auto-dismiss after 3 seconds
+              setTimeout(() => {
+                alertDiv.remove();
+              }, 3000);
+              
+              // Refresh page after short delay to show updated data
+              setTimeout(() => {
+                window.location.reload();
+              }, 1500);
+              
+            } else {
+              throw new Error(result.message);
+            }
+            
+          } catch (error) {
+            // Error feedback
+            this.classList.remove('btn-success');
+            this.classList.add('btn-danger');
+            this.innerHTML = '❌ Failed';
+            console.error('Quick add failed:', error);
+            
+            // Reset button after delay
+            setTimeout(() => {
+              this.classList.remove('btn-danger');
+              this.disabled = false;
+              this.innerHTML = originalContent;
+            }, 2000);
+          }
+        });
+      });
+
+      // Show/Hide Custom Form
+      showFormBtn?.addEventListener('click', function() {
+        fullFormCard.style.display = 'block';
+        this.style.display = 'none';
+        fullFormCard.scrollIntoView({ behavior: 'smooth' });
+      });
+
+      hideFormBtn?.addEventListener('click', function() {
+        fullFormCard.style.display = 'none';
+        showFormBtn.style.display = 'inline-block';
+      });
+
+      // Touch Gesture Handling for Swipe-to-Delete
+      let startX, startY, currentX, currentY;
+      let isSwiping = false;
+      let activeCard = null;
+
+      document.querySelectorAll('.expense-card').forEach(card => {
+        let startX = 0;
+        let currentX = 0;
+        let isDragging = false;
+        let startTime = 0;
+
+        // Touch start
+        card.addEventListener('touchstart', function(e) {
+          startX = e.touches[0].clientX;
+          currentX = startX;
+          isDragging = false;
+          startTime = Date.now();
+          card.style.transition = 'none';
+        }, { passive: true });
+
+        // Touch move
+        card.addEventListener('touchmove', function(e) {
+          if (!isDragging && Math.abs(e.touches[0].clientX - startX) > 10) {
+            isDragging = true;
+          }
+          
+          if (isDragging) {
+            currentX = e.touches[0].clientX;
+            const deltaX = currentX - startX;
+            
+            // Only allow left swipe (negative deltaX)
+            if (deltaX < 0) {
+              const maxSwipe = -80; // Maximum swipe distance
+              const actualDelta = Math.max(deltaX, maxSwipe);
+              card.style.transform = `translateX(${actualDelta}px)`;
+              
+              // Show delete button when swiped enough
+              if (actualDelta <= -50 && !card.classList.contains('delete-visible')) {
+                card.classList.add('delete-visible');
+                // Haptic feedback when delete becomes available
+                if ('vibrate' in navigator) {
+                  navigator.vibrate(30);
+                }
+              } else if (actualDelta > -50) {
+                card.classList.remove('delete-visible');
+              }
+            }
+          }
+        }, { passive: true });
+
+        // Touch end
+        card.addEventListener('touchend', function(e) {
+          card.style.transition = 'transform 0.3s ease';
+          const deltaX = currentX - startX;
+          const swipeTime = Date.now() - startTime;
+          
+          // Reset if not swiped enough or was a quick tap
+          if (deltaX > -50 || swipeTime < 100) {
+            card.style.transform = 'translateX(0)';
+            card.classList.remove('delete-visible');
+          } else {
+            // Keep delete button visible
+            card.style.transform = 'translateX(-80px)';
+            card.classList.add('delete-visible');
+          }
+          
+          isDragging = false;
+        }, { passive: true });
+
+        // Handle delete button clicks
+        const deleteBtn = card.querySelector('.delete-form button');
+        deleteBtn?.addEventListener('click', function(e) {
+          e.preventDefault();
+          
+          // Haptic feedback
+          if ('vibrate' in navigator) {
+            navigator.vibrate([50, 50, 50]); // Warning pattern
+          }
+          
+          if (confirm('Delete this expense?')) {
+            // Success haptic
+            if ('vibrate' in navigator) {
+              navigator.vibrate(100);
+            }
+            const form = this.closest('.delete-form');
+            form.submit();
+          }
+        });
+
+        // Reset swipe when tapping elsewhere
+        document.addEventListener('touchstart', function(e) {
+          if (!card.contains(e.target) && card.classList.contains('delete-visible')) {
+            card.style.transform = 'translateX(0)';
+            card.classList.remove('delete-visible');
+          }
+        }, { passive: true });
+      });
+    });
   </script>
 </html>

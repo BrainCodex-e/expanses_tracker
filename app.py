@@ -551,6 +551,40 @@ def add():
     return redirect(url_for("index"))
 
 
+@app.route("/quick-add", methods=["POST"])
+@login_required
+def quick_add():
+    """Quick add endpoint for predefined expense types"""
+    try:
+        category = request.form.get("category")
+        amount = request.form.get("amount")
+        notes = request.form.get("notes", "")
+        current_user = session.get('user')
+        
+        if not category or not amount or not current_user:
+            return {"success": False, "message": "Missing required fields"}, 400
+        
+        # Use today's date for quick adds
+        today = date.today().isoformat()
+        
+        # Validate amount
+        try:
+            amount_float = float(amount)
+            if amount_float <= 0:
+                return {"success": False, "message": "Amount must be positive"}, 400
+        except (ValueError, TypeError):
+            return {"success": False, "message": "Invalid amount"}, 400
+        
+        # Add the expense
+        add_expense(today, category, amount_float, current_user, notes, None)
+        
+        return {"success": True, "message": f"Added {notes} for ₪{amount_float}"}, 200
+        
+    except Exception as e:
+        print(f"Quick add error: {e}")
+        return {"success": False, "message": "Failed to add expense"}, 500
+
+
 @app.route("/delete", methods=["POST"])
 @login_required
 def delete():
