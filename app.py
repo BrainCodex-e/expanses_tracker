@@ -224,10 +224,29 @@ def delete_row(row_id):
 
 def get_user_budgets(username):
     """Get all budget limits for a specific user from database"""
+    # TEMPORARY FIX: Always start with hardcoded budgets as fallback
+    fallback_budgets = BUDGET_LIMITS.get(username, {})
+    print(f"DEBUG: Hardcoded fallback for {username}: {fallback_budgets}")
+    
     try:
         conn = get_conn()
         cur = conn.cursor()
         
+        # Check if user_budgets table exists
+        if USE_POSTGRES:
+            cur.execute("SELECT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'user_budgets')")
+            table_exists = cur.fetchone()[0]
+        else:
+            cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user_budgets'")
+            table_exists = bool(cur.fetchone())
+        
+        print(f"DEBUG: user_budgets table exists: {table_exists}")
+        
+        if not table_exists:
+            print("DEBUG: user_budgets table missing, using hardcoded fallback")
+            conn.close()
+            return fallback_budgets
+            
         if USE_POSTGRES:
             cur.execute("SELECT category, budget_limit FROM user_budgets WHERE username = %s", (username,))
         else:
@@ -235,28 +254,31 @@ def get_user_budgets(username):
         
         budgets = {}
         rows = cur.fetchall()
-        print(f"DEBUG: Found {len(rows)} budget records for user '{username}'")
+        print(f"DEBUG: Found {len(rows)} budget records for user '{username}' in database")
         
         for row in rows:
             category, budget_limit = row
             budgets[category] = float(budget_limit)
-            print(f"DEBUG: {username}/{category}: ₪{budget_limit}")
+            print(f"DEBUG: DB {username}/{category}: ₪{budget_limit}")
         
         conn.close()
         
-        # Always merge with hardcoded defaults to ensure all categories are populated
-        final_budgets = {}
-        if username in BUDGET_LIMITS:
-            final_budgets.update(BUDGET_LIMITS[username])
-        final_budgets.update(budgets)  # Database values override hardcoded ones
+        # If no database records found, use hardcoded fallback
+        if not budgets:
+            print(f"DEBUG: No database records for {username}, using hardcoded fallback")
+            return fallback_budgets
         
-        print(f"DEBUG: Final budget data for {username}: {final_budgets}")
+        # Merge database with fallback (database overrides hardcoded)
+        final_budgets = fallback_budgets.copy()
+        final_budgets.update(budgets)
+        
+        print(f"DEBUG: Final merged budget data for {username}: {final_budgets}")
         return final_budgets
         
     except Exception as e:
         print(f"ERROR getting user budgets for {username}: {e}")
-        # Fallback to hardcoded limits on error
-        return BUDGET_LIMITS.get(username, {})
+        print(f"DEBUG: Using hardcoded fallback due to error")
+        return fallback_budgets
 
 
 def set_user_budget(username, category, budget_limit):
