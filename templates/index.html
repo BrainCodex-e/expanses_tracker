@@ -234,8 +234,11 @@
               
               <!-- Mobile Card View (Hidden on larger screens) -->
               <div class="d-md-none">
+                <div class="text-muted small mb-2 text-center">
+                  👆 Tap to edit • 👈 Swipe left to delete
+                </div>
                 {% for r in records %}
-                  <div class="expense-card mb-2" data-expense-id="{{ r.id }}">
+                  <div class="expense-card mb-2 clickable" data-expense-id="{{ r.id }}">
                     <div class="expense-content">
                       <div class="d-flex justify-content-between align-items-start">
                         <div class="flex-grow-1">
@@ -250,6 +253,9 @@
                         </div>
                         <div class="fw-bold text-end">
                           ₪{{ r.amount }}
+                          <div class="edit-hint">
+                            <small class="text-muted">✏️</small>
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -278,7 +284,7 @@
                       <th>Payer</th>
                       <th>Split</th>
                       <th>Notes</th>
-                      <th></th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -298,11 +304,14 @@
                         </td>
                         <td>{{ r.notes }}</td>
                         <td>
-                          <form method="post" action="/delete" onsubmit="return confirm('Delete this expense?');">
-                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                            <input type="hidden" name="row_id" value="{{ r.id }}">
-                            <button type="submit" class="btn btn-sm btn-outline-danger">Delete</button>
-                          </form>
+                          <div class="btn-group" role="group">
+                            <a href="/edit/{{ r.id }}" class="btn btn-sm btn-outline-primary">✏️ Edit</a>
+                            <form method="post" action="/delete" onsubmit="return confirm('Delete this expense?');" class="d-inline">
+                              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                              <input type="hidden" name="row_id" value="{{ r.id }}">
+                              <button type="submit" class="btn btn-sm btn-outline-danger">🗑️ Delete</button>
+                            </form>
+                          </div>
                         </td>
                       </tr>
                     {% endfor %}
@@ -509,8 +518,9 @@
           expenseContent.style.transition = 'transform 0.3s ease';
           const deltaX = currentX - startX;
           const swipeTime = Date.now() - startTime;
+          const wasSwipe = isDragging && hasMovedHorizontally;
           
-          if (isDragging && hasMovedHorizontally) {
+          if (wasSwipe) {
             // Reset if not swiped enough
             if (deltaX > -50 || swipeTime < 50) {
               expenseContent.style.transform = 'translateX(0)';
@@ -522,6 +532,12 @@
               card.classList.add('delete-visible');
               console.log('Keeping delete visible for card', index);
             }
+          } else if (!card.classList.contains('delete-visible') && swipeTime < 300 && Math.abs(deltaX) < 10) {
+            // This was a tap, not a swipe - navigate to edit
+            console.log('Tap detected, editing expense:', card.dataset.expenseId);
+            setTimeout(() => {
+              window.location.href = `/edit/${card.dataset.expenseId}`;
+            }, 100);
           }
           
           isDragging = false;
@@ -556,7 +572,14 @@
             card.classList.remove('delete-visible');
           }
         }, { passive: true });
+
+
       });
+
+      // Global function for edit expense (if needed)
+      window.editExpense = function(expenseId) {
+        window.location.href = `/edit/${expenseId}`;
+      };
     });
   </script>
 </html>

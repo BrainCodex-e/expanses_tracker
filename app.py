@@ -215,9 +215,59 @@ def delete_row(row_id):
     cur = conn.cursor()
     
     if USE_POSTGRES:
-        cur.execute("DELETE FROM expenses WHERE id = %s", (int(row_id),))
+        cur.execute("DELETE FROM expenses WHERE id = %s", (row_id,))
     else:
-        cur.execute("DELETE FROM expenses WHERE id = ?", (int(row_id),))
+        cur.execute("DELETE FROM expenses WHERE id = ?", (row_id,))
+    
+    conn.commit()
+    conn.close()
+
+
+def get_expense_by_id(expense_id):
+    """Get a single expense by ID"""
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    if USE_POSTGRES:
+        cur.execute("SELECT id, tx_date, category, amount, payer, notes, split_with FROM expenses WHERE id = %s", (expense_id,))
+    else:
+        cur.execute("SELECT id, tx_date, category, amount, payer, notes, split_with FROM expenses WHERE id = ?", (expense_id,))
+    
+    result = cur.fetchone()
+    conn.close()
+    
+    if result:
+        return {
+            'id': result[0],
+            'tx_date': result[1],
+            'category': result[2], 
+            'amount': result[3],
+            'payer': result[4],
+            'notes': result[5] or '',
+            'split_with': result[6] or ''
+        }
+    return None
+
+
+def update_expense(expense_id, tx_date, category, amount, payer, notes, split_with=None):
+    """Update an existing expense"""
+    conn = get_conn()
+    cur = conn.cursor()
+    
+    if USE_POSTGRES:
+        cur.execute(
+            """UPDATE expenses 
+               SET tx_date = %s, category = %s, amount = %s, payer = %s, notes = %s, split_with = %s
+               WHERE id = %s""",
+            (tx_date, category, float(amount), payer, notes, split_with, expense_id)
+        )
+    else:
+        cur.execute(
+            """UPDATE expenses 
+               SET tx_date = ?, category = ?, amount = ?, payer = ?, notes = ?, split_with = ?
+               WHERE id = ?""",
+            (tx_date, category, float(amount), payer, notes, split_with, expense_id)
+        )
     
     conn.commit()
     conn.close()
@@ -583,6 +633,68 @@ def quick_add():
     except Exception as e:
         print(f"Quick add error: {e}")
         return {"success": False, "message": "Failed to add expense"}, 500
+
+
+@app.route("/edit/<int:expense_id>", methods=["GET"])
+@login_required
+def edit_expense_form(expense_id):
+    """Show edit form for a specific expense"""
+    expense = get_expense_by_id(expense_id)
+    if not expense:
+        flash("Expense not found", "error")
+        return redirect(url_for("index"))
+    
+    # Convert date to string for HTML date input
+    if hasattr(expense['tx_date'], 'isoformat'):
+        expense['tx_date'] = expense['tx_date'].isoformat()
+    elif isinstance(expense['tx_date'], str):
+        # Already a string, ensure it's in ISO format
+        try:
+            expense['tx_date'] = datetime.fromisoformat(expense['tx_date']).date().isoformat()
+        except:
+            pass
+    
+    return render_template("edit_expense.html", 
+                         expense=expense, 
+                         categories=CATEGORIES, 
+                         people=DEFAULT_PEOPLE)
+
+
+@app.route("/edit/<int:expense_id>", methods=["POST"])
+@login_required
+def update_expense_route(expense_id):
+    """Update an existing expense"""
+    try:
+        tx_date = request.form.get("tx_date") or date.today().isoformat()
+        # Ensure ISO date string (YYYY-MM-DD)
+        tx_date_val = datetime.fromisoformat(tx_date).date().isoformat()
+    except Exception:
+        flash("Invalid date provided", "error")
+        return redirect(url_for("edit_expense_form", expense_id=expense_id))
+
+    category = request.form.get("category") or CATEGORIES[0]
+    payer = request.form.get("payer") or DEFAULT_PEOPLE[0]
+    amount = request.form.get("amount") or 0
+    notes = request.form.get("notes") or ""
+    split_with = request.form.get("split_with") or None
+
+    try:
+        if float(amount) <= 0:
+            flash("Amount must be positive", "error")
+            return redirect(url_for("edit_expense_form", expense_id=expense_id))
+    except Exception:
+        flash("Invalid amount", "error")
+        return redirect(url_for("edit_expense_form", expense_id=expense_id))
+
+    # Check if expense exists and update it
+    existing_expense = get_expense_by_id(expense_id)
+    if not existing_expense:
+        flash("Expense not found", "error")
+        return redirect(url_for("index"))
+
+    update_expense(expense_id, tx_date_val, category, amount, payer, notes, split_with)
+    flash("Expense updated successfully ✅", "success")
+    return redirect(url_for("index"))
 
 
 @app.route("/delete", methods=["POST"])

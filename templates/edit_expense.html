@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Edit Expense - Expense Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <link rel="manifest" href="/static/manifest.json">
+    <meta name="theme-color" content="#0d6efd">
+    <link rel="apple-touch-icon" href="https://via.placeholder.com/192.png?text=App">
+  </head>
+  <body>
+    <div class="container my-4">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h1>✏️ Edit Expense</h1>
+        <a href="/" class="btn btn-outline-secondary">← Back</a>
+      </div>
+
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for cat, msg in messages %}
+            <div class="alert alert-{{ 'success' if cat=='success' else 'danger' }} alert-dismissible fade show">
+              {{ msg }}
+              <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+
+      <div class="row justify-content-center">
+        <div class="col-md-8 col-lg-6">
+          <div class="card">
+            <div class="card-body">
+              <h5 class="card-title">Edit Expense Details</h5>
+              <form action="/edit/{{ expense.id }}" method="post">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                
+                <div class="mb-3">
+                  <label class="form-label">Date</label>
+                  <input type="date" name="tx_date" class="form-control" value="{{ expense.tx_date }}" required>
+                </div>
+                
+                <div class="mb-3">
+                  <label class="form-label">Category</label>
+                  <select name="category" class="form-select" required>
+                    {% for c in categories %}
+                      <option value="{{ c }}" {{ 'selected' if c == expense.category else '' }}>{{ c }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                
+                <div class="mb-3">
+                  <label class="form-label">Payer</label>
+                  <select name="payer" class="form-select" required>
+                    {% for p in people %}
+                      <option value="{{ p }}" {{ 'selected' if p == expense.payer else '' }}>{{ p }}</option>
+                    {% endfor %}
+                  </select>
+                </div>
+                
+                <div class="mb-3">
+                  <label class="form-label">Amount (₪)</label>
+                  <input type="number" step="0.01" name="amount" class="form-control" value="{{ expense.amount }}" required min="0.01">
+                </div>
+                
+                <div class="mb-3">
+                  <label class="form-label">Split With (Optional)</label>
+                  <select name="split_with" class="form-select">
+                    <option value="">No split ({{ expense.payer }} pays full amount)</option>
+                    {% for p in people %}
+                      {% if p != expense.payer %}
+                        <option value="{{ p }}" {{ 'selected' if p == expense.split_with else '' }}>Split 50/50 with {{ p }}</option>
+                      {% endif %}
+                    {% endfor %}
+                  </select>
+                  <div class="form-text">When splitting, each person gets charged half the amount to their budget</div>
+                </div>
+                
+                <div class="mb-3">
+                  <label class="form-label">Notes</label>
+                  <input type="text" name="notes" class="form-control" value="{{ expense.notes }}" placeholder="Optional description">
+                </div>
+                
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                  <a href="/" class="btn btn-outline-secondary">Cancel</a>
+                  <button type="submit" class="btn btn-success">💾 Update Expense</button>
+                </div>
+              </form>
+            </div>
+          </div>
+          
+          <!-- Quick Actions -->
+          <div class="card mt-3">
+            <div class="card-body">
+              <h6 class="card-title">Quick Actions</h6>
+              <div class="d-grid gap-2">
+                <form method="post" action="/delete" onsubmit="return confirm('Are you sure you want to delete this expense?');" class="d-inline">
+                  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                  <input type="hidden" name="row_id" value="{{ expense.id }}">
+                  <button type="submit" class="btn btn-outline-danger btn-sm w-100">🗑️ Delete This Expense</button>
+                </form>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+  </body>
+</html>
