@@ -978,6 +978,7 @@ def budget_dashboard():
         return redirect(url_for("login"))
         
     df = load_expenses()
+    print(f"BUDGET DEBUG: Loaded {len(df)} total expenses")
     
     # Calculate current month data for budget overview
     today = date.today()
@@ -987,6 +988,9 @@ def budget_dashboard():
     else:
         month_end = date(month_start.year, month_start.month + 1, 1)
     
+    print(f"BUDGET DEBUG: Current user: {current_user}")
+    print(f"BUDGET DEBUG: Date range: {month_start} to {month_end}")
+    
     # Calculate spending for current user only
     budget_status = {}
     total_spent_by_user = 0
@@ -995,14 +999,19 @@ def budget_dashboard():
     # Only process current user's data
     budget_status[current_user] = {}
     person_budgets = get_user_budgets(current_user)
+    print(f"BUDGET DEBUG: User budgets: {person_budgets}")
         
     if not df.empty:
         # Filter for current month and current user
         df["tx_date"] = pd.to_datetime(df["tx_date"]).dt.date
+        print(f"BUDGET DEBUG: Sample dates in df: {df['tx_date'].head().tolist()}")
+        print(f"BUDGET DEBUG: Sample payers in df: {df['payer'].head().tolist()}")
+        
         mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & \
                (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end)) & \
                (df["payer"] == current_user)
         person_df = df[mask].copy()
+        print(f"BUDGET DEBUG: After filtering - found {len(person_df)} expenses for {current_user}")
         
         if not person_df.empty:
             # Calculate actual spending for budget tracking (accounting for splits)
@@ -1030,11 +1039,15 @@ def budget_dashboard():
     else:
         spent_by_category = pd.Series([], dtype=float)
     
+    print(f"BUDGET DEBUG: Spending by category: {spent_by_category.to_dict() if hasattr(spent_by_category, 'to_dict') else spent_by_category}")
+    
     # Calculate budget status for each category for current user
     for category, budget_limit in person_budgets.items():
         spent = spent_by_category.get(category, 0)
         remaining = max(0, budget_limit - spent)
         percentage = (spent / budget_limit * 100) if budget_limit > 0 else 0
+        
+        print(f"BUDGET DEBUG: {category} - Spent: ₪{spent}, Budget: ₪{budget_limit}")
         
         status = "success"  # Green
         if spent > budget_limit:
@@ -1052,6 +1065,8 @@ def budget_dashboard():
         
         total_spent_by_user += spent
         total_budget_by_user += budget_limit
+    
+    print(f"BUDGET DEBUG: Final totals - Spent: ₪{total_spent_by_user}, Budget: ₪{total_budget_by_user}")
     
     import time
     return render_template("budget_dashboard.html", 
