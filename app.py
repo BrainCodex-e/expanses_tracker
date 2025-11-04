@@ -150,8 +150,10 @@ def init_db():
 
 def get_conn():
     if USE_POSTGRES:
+        print(f"DEBUG: Using PostgreSQL database: {DATABASE_URL[:30]}...")
         return psycopg2.connect(DATABASE_URL)
     else:
+        print(f"DEBUG: Using SQLite database: {DB_PATH}")
         return sqlite3.connect(DB_PATH)
 
 
@@ -175,6 +177,7 @@ def migrate_db():
 
 
 def add_expense(tx_date, category, amount, payer, notes, split_with=None):
+    print(f"DEBUG: Adding expense - Date: {tx_date}, Category: {category}, Amount: {amount}, Payer: {payer}, Split: {split_with}")
     conn = get_conn()
     cur = conn.cursor()
     
@@ -191,6 +194,7 @@ def add_expense(tx_date, category, amount, payer, notes, split_with=None):
     
     conn.commit()
     conn.close()
+    print(f"DEBUG: Expense added successfully to database")
 
 
 def load_expenses():
