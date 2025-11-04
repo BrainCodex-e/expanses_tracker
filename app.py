@@ -198,8 +198,10 @@ def load_expenses():
         conn = get_conn()
         df = pd.read_sql_query("SELECT * FROM expenses ORDER BY tx_date DESC, id DESC", conn, parse_dates=["tx_date"])
         conn.close()
+        print(f"DEBUG: Loaded {len(df)} total expenses from database")
         return df
     else:
+        print("DEBUG: No database found, returning empty DataFrame")
         return pd.DataFrame()
 
 
@@ -527,7 +529,9 @@ def add():
 def delete():
     row_id = request.form.get("row_id")
     if row_id and row_id.isdigit():
+        print(f"DEBUG: Deleting expense row {row_id}")
         delete_row(int(row_id))
+        print(f"DEBUG: Row {row_id} deleted from database")
         flash(f"Row {row_id} deleted.", "success")
     else:
         flash("Please enter a numeric ID.", "error")
@@ -601,7 +605,12 @@ def plot_png(kind):
 
     fig.savefig(buf, format="png")
     buf.seek(0)
-    return send_file(buf, mimetype="image/png")
+    response = send_file(buf, mimetype="image/png")
+    # Prevent browser caching of chart images
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 
 @app.route("/budget/<person>.png")
@@ -721,7 +730,12 @@ def budget_progress_png(person):
     fig.savefig(buf, format="png", dpi=100, bbox_inches='tight')
     buf.seek(0)
     plt.close(fig)
-    return send_file(buf, mimetype="image/png")
+    response = send_file(buf, mimetype="image/png")
+    # Prevent browser caching of budget chart images
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
 
 
 @app.route("/budget/settings")
