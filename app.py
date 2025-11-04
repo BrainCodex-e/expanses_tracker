@@ -819,22 +819,62 @@ def status():
         
         if USE_POSTGRES:
             cur.execute("SELECT COUNT(*) FROM expenses")
+            count_result = cur.fetchone()
+            
+            # Get sample expense data to debug date/user issues
+            cur.execute("SELECT tx_date, payer, category, amount FROM expenses ORDER BY id DESC LIMIT 3")
+            sample_expenses = cur.fetchall()
         else:
             cur.execute("SELECT COUNT(*) FROM expenses")
+            count_result = cur.fetchone()
+            
+            cur.execute("SELECT tx_date, payer, category, amount FROM expenses ORDER BY id DESC LIMIT 3")
+            sample_expenses = cur.fetchall()
         
-        count = cur.fetchone()[0]
+        count = count_result[0] if count_result else 0
         conn.close()
         
-        return f"""
-        <h1>App Status</h1>
+        # Current date info for comparison
+        today = date.today()
+        month_start = date(today.year, today.month, 1)
+        
+        html = f"""
+        <h1>App Status & Debug</h1>
         <p>✅ Database connection: OK</p>
         <p>📊 Total expenses: {count}</p>
         <p>🗄️ Database type: {'PostgreSQL' if USE_POSTGRES else 'SQLite'}</p>
-        <p>📅 Current date: {date.today()}</p>
+        <p>📅 Current date: {today}</p>
+        <p>📅 Current month start: {month_start}</p>
+        
+        <h3>Sample Expenses (Latest 3):</h3>
+        <table border="1">
+            <tr><th>Date</th><th>Payer</th><th>Category</th><th>Amount</th></tr>
+        """
+        
+        for expense in sample_expenses:
+            html += f"""
+            <tr>
+                <td>{expense[0]} ({type(expense[0]).__name__})</td>
+                <td>"{expense[1]}"</td>
+                <td>{expense[2]}</td>
+                <td>₪{expense[3]}</td>
+            </tr>
+            """
+        
+        html += """
+        </table>
         <hr>
+        <p><strong>Check if:</strong></p>
+        <ul>
+            <li>Dates match current month (November 2025)</li>
+            <li>Payer names match exactly (case sensitive)</li>
+            <li>Date format is correct</li>
+        </ul>
         <p><a href="/logs/budget">→ Detailed Budget Logs (login required)</a></p>
         <p><a href="/">→ Main App</a></p>
         """
+        
+        return html
         
     except Exception as e:
         return f"""
