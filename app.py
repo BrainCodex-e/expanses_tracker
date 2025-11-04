@@ -1184,11 +1184,11 @@ def budget_dashboard():
         
         print(f"BUDGET DEBUG: Parsed dates: {df['tx_date_parsed'].head().tolist()}")
         
-        # Simple filtering - current month and current user
+        # Simple filtering - current month and current user (case-insensitive)
         current_month_expenses = df[
             (df['tx_date_parsed'] >= month_start) & 
             (df['tx_date_parsed'] < month_end) & 
-            (df['payer'] == current_user)
+            (df['payer'].str.lower() == current_user.lower())
         ].copy()
         
         print(f"BUDGET DEBUG: Found {len(current_month_expenses)} expenses for {current_user} this month")
