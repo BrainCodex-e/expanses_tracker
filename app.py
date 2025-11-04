@@ -478,6 +478,7 @@ def index():
         by_cat_list = []
         records = []
 
+    import time
     return render_template(
         "index.html",
         people=people,
@@ -487,6 +488,7 @@ def index():
         by_person_list=by_person_list,
         by_cat_list=by_cat_list,
         records=records,
+        timestamp=int(time.time()),
     )
 
 
@@ -607,6 +609,7 @@ def plot_png(kind):
 def budget_progress_png(person):
     """Generate budget progress chart for a specific person"""
     df = load_expenses()
+    print(f"DEBUG: Total expenses loaded: {len(df)}")
     if df.empty:
         return "No data", 400
     
@@ -619,11 +622,13 @@ def budget_progress_png(person):
     else:
         month_end = date(month_start.year, month_start.month + 1, 1)
 
+    print(f"DEBUG: Filtering for {person} from {month_start} to {month_end}")
     mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & \
            (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end)) & \
            (df["payer"] == person)
     
     person_df = df[mask].copy()
+    print(f"DEBUG: Found {len(person_df)} expenses for {person} this month")
     
     # Calculate spending by category (accounting for splits)
     if person_df.empty:
@@ -850,12 +855,14 @@ def budget_dashboard():
         total_spent_by_user += spent
         total_budget_by_user += budget_limit
     
+    import time
     return render_template("budget_dashboard.html", 
                          budget_status=budget_status,
                          total_spent_by_user=total_spent_by_user,
                          total_budget_by_user=total_budget_by_user,
                          current_user=current_user,
-                         month_name=today.strftime("%B %Y"))
+                         month_name=today.strftime("%B %Y"),
+                         timestamp=int(time.time()))
 
 
 if __name__ == "__main__":
