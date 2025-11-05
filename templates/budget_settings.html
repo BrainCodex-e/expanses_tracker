@@ -35,40 +35,47 @@
               <h5 class="card-title">Set Your Monthly Budget Limits</h5>
               <p class="text-muted">Define your personal spending limits for each category. Leave blank to remove budget limit.</p>
               
-              <form action="/budget/update" method="post">
+              <form action="/budget/update" method="post" id="budget-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 
                 <div class="mb-4">
                   <h6 class="text-primary border-bottom pb-2">🧑‍💼 {{ current_user }} - Your Budget</h6>
-                  <div class="row">
+                  <div class="row budget-form">
                     {% for category in categories %}
-                      <div class="col-md-6 mb-3">
-                        <label class="form-label">
+                      <div class="col-md-6 col-12 mb-3">
+                        <label class="form-label" for="budget_{{ category }}">
                           <strong>{{ category }}</strong>
                           {% if budget_limits.get(category) %}
-                            <span class="text-success">(Current: ₪{{ budget_limits[category] }})</span>
+                            <span class="text-success">(₪{{ budget_limits[category] }})</span>
                           {% else %}
-                            <span class="text-muted">(No limit set)</span>
+                            <span class="text-muted">(No limit)</span>
                           {% endif %}
                         </label>
                         <div class="input-group">
                           <span class="input-group-text">₪</span>
                           <input type="number" 
+                                 id="budget_{{ category }}"
                                  name="budget_{{ category }}" 
                                  class="form-control" 
-                                 step="0.01" 
+                                 step="1" 
                                  min="0"
+                                 inputmode="numeric"
+                                 pattern="[0-9]*"
                                  value="{{ budget_limits.get(category, '') }}"
-                                 placeholder="No limit">
+                                 placeholder="0"
+                                 autocomplete="off">
                         </div>
                       </div>
                     {% endfor %}
                   </div>
                 </div>
                 
-                <div class="d-flex justify-content-between mt-4">
-                  <a href="/" class="btn btn-secondary">Cancel</a>
-                  <button type="submit" class="btn btn-primary">Save Budget Settings</button>
+                <div class="d-grid gap-2 d-md-flex justify-content-md-between mt-4">
+                  <a href="/" class="btn btn-secondary btn-lg">Cancel</a>
+                  <button type="submit" class="btn btn-primary btn-lg" id="save-btn">
+                    <span class="save-text">Save Budget Settings</span>
+                    <span class="spinner d-none"></span>
+                  </button>
                 </div>
               </form>
             </div>
@@ -91,5 +98,96 @@
         </div>
       </div>
     </div>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      // Mobile optimization and performance improvements
+      document.addEventListener('DOMContentLoaded', function() {
+        const form = document.getElementById('budget-form');
+        const saveBtn = document.getElementById('save-btn');
+        const saveText = saveBtn.querySelector('.save-text');
+        const spinner = saveBtn.querySelector('.spinner');
+        
+        // Optimize form submission for mobile
+        form.addEventListener('submit', function(e) {
+          // Prevent double submission
+          if (saveBtn.disabled) {
+            e.preventDefault();
+            return false;
+          }
+          
+          // Show loading state
+          saveBtn.disabled = true;
+          saveText.textContent = 'Saving...';
+          spinner.classList.remove('d-none');
+          
+          // Re-enable after timeout (fallback)
+          setTimeout(() => {
+            saveBtn.disabled = false;
+            saveText.textContent = 'Save Budget Settings';
+            spinner.classList.add('d-none');
+          }, 10000);
+        });
+        
+        // Improve input responsiveness on mobile
+        const inputs = document.querySelectorAll('input[type="number"]');
+        inputs.forEach(input => {
+          // Debounce input validation for performance
+          let timeout;
+          input.addEventListener('input', function() {
+            clearTimeout(timeout);
+            timeout = setTimeout(() => {
+              // Basic validation
+              if (this.value < 0) {
+                this.value = 0;
+              }
+              // Remove decimal places for cleaner mobile input
+              if (this.value.includes('.')) {
+                this.value = Math.floor(parseFloat(this.value));
+              }
+            }, 300);
+          });
+          
+          // Better focus handling for mobile
+          input.addEventListener('focus', function() {
+            this.select();
+          });
+          
+          // Prevent zoom on iOS when focusing inputs
+          input.addEventListener('touchstart', function() {
+            if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+              this.style.fontSize = '16px';
+            }
+          });
+        });
+        
+        // Add haptic feedback for supported devices
+        if ('vibrate' in navigator) {
+          const buttons = document.querySelectorAll('.btn');
+          buttons.forEach(btn => {
+            btn.addEventListener('click', () => {
+              navigator.vibrate(50); // Short vibration
+            });
+          });
+        }
+        
+        // Optimize scroll behavior
+        if ('scrollBehavior' in document.documentElement.style) {
+          document.documentElement.style.scrollBehavior = 'smooth';
+        }
+        
+        // Performance optimization: reduce animations on slower devices
+        const isSlowDevice = navigator.hardwareConcurrency && navigator.hardwareConcurrency < 4;
+        if (isSlowDevice) {
+          document.body.style.setProperty('--transition', 'all 0.1s ease');
+        }
+      });
+      
+      // Service Worker registration for better performance (if available)
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('/static/sw.js').catch(() => {
+          // Silently fail if SW not available
+        });
+      }
+    </script>
   </body>
 </html>

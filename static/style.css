@@ -297,32 +297,88 @@ h1, h5 {
 .stats-card.person { border-left-color: #4facfe; }
 .stats-card.category { border-left-color: #fa709a; }
 
-/* Enhanced mobile touch targets */
+/* Enhanced mobile touch targets and performance */
 @media (max-width: 768px) {
+  /* Disable hover effects on mobile to improve performance */
+  * {
+    -webkit-tap-highlight-color: rgba(0,0,0,0.1);
+    tap-highlight-color: rgba(0,0,0,0.1);
+  }
+  
+  /* Optimize touch interactions */
+  .btn, .form-control, .form-select, .quick-add-btn {
+    touch-action: manipulation;
+    -webkit-user-select: none;
+    user-select: none;
+    -webkit-touch-callout: none;
+  }
+  
+  /* Remove delays on mobile taps */
+  .btn {
+    touch-action: manipulation;
+  }
+  
+  /* Larger touch targets for better accessibility */
   .quick-add-btn {
-    padding: 12px 8px;
-    font-size: 0.85rem;
+    padding: 16px 12px;
+    font-size: 0.9rem;
+    min-height: 75px;
+    font-weight: 700;
   }
   
   .expense-card {
     margin-bottom: 12px;
-    min-height: 85px;
+    min-height: 90px;
   }
   
   .expense-content {
-    padding: 16px;
-    min-height: 85px;
+    padding: 18px;
+    min-height: 90px;
     display: flex;
     align-items: center;
   }
   
   .card {
-    margin-bottom: 1rem;
+    margin-bottom: 1.2rem;
   }
   
   .container {
     padding-left: 1rem;
     padding-right: 1rem;
+  }
+  
+  /* Optimize form inputs for mobile */
+  .form-control, .form-select {
+    min-height: 48px;
+    font-size: 16px; /* Prevents zoom on iOS */
+    padding: 12px 16px;
+  }
+  
+  /* Better button sizing */
+  .btn {
+    min-height: 48px;
+    padding: 12px 20px;
+    font-size: 16px;
+  }
+  
+  /* Optimize budget form layout */
+  .budget-form .col-md-6 {
+    margin-bottom: 1.5rem;
+  }
+  
+  /* Reduce transitions on mobile for better performance */
+  .card:hover {
+    transform: none;
+  }
+  
+  .btn:hover {
+    transform: none;
+  }
+  
+  /* Focus states for accessibility */
+  .form-control:focus, .btn:focus {
+    outline: 2px solid #007bff;
+    outline-offset: 2px;
   }
 }
 
@@ -378,6 +434,75 @@ h1, h5 {
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(20px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* Mobile-specific optimizations */
+@media (hover: none) and (pointer: coarse) {
+  /* Remove hover effects on touch devices */
+  .card:hover,
+  .btn:hover,
+  .quick-add-btn:hover {
+    transform: none;
+    box-shadow: var(--card-shadow);
+  }
+  
+  /* Optimize touch interactions */
+  .btn:active,
+  .quick-add-btn:active {
+    transform: scale(0.95);
+    transition: transform 0.1s ease;
+  }
+  
+  /* Better button feedback */
+  .btn-primary:active {
+    background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%);
+  }
+  
+  /* Optimize form inputs for touch */
+  .form-control:focus {
+    transform: none;
+    box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+  }
+}
+
+/* Performance optimizations */
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Reduce motion for users who prefer it */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Dark mode support for better battery life on OLED screens */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --card-shadow: 0 4px 6px rgba(255, 255, 255, 0.05), 0 1px 3px rgba(255, 255, 255, 0.1);
+  }
+  
+  body {
+    background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+    color: #e2e8f0;
+  }
+  
+  .card {
+    background: rgba(45, 55, 72, 0.95);
+    color: #e2e8f0;
+  }
+  
+  .form-control, .form-select {
+    background: rgba(26, 32, 44, 0.8);
+    border-color: #4a5568;
+    color: #e2e8f0;
+  }
 }
 
 /* Chart Container Animation */
