@@ -53,7 +53,7 @@ CATEGORIES = [
 ]
 # Household configuration - maps users to their household groups
 HOUSEHOLD_USERS = {
-    "erez_lia": ["Erez", "Lia"],
+    "erez_lia": ["erez", "lia"],
     "parents": ["mom", "dad"]
 }
 
@@ -204,18 +204,35 @@ def migrate_db():
             cur.execute("ALTER TABLE expenses ADD COLUMN IF NOT EXISTS household TEXT DEFAULT 'default'")
             cur.execute("ALTER TABLE user_budgets ADD COLUMN IF NOT EXISTS household TEXT DEFAULT 'default'")
             
-            # Add unique constraint if it doesn't exist
+            # Handle existing constraints - don't add conflicting ones
             try:
+                # Check what constraints already exist
                 cur.execute(
                     """
-                    ALTER TABLE user_budgets 
-                    ADD CONSTRAINT user_budgets_unique 
-                    UNIQUE (username, category, household)
+                    SELECT constraint_name, constraint_type 
+                    FROM information_schema.table_constraints 
+                    WHERE table_name = 'user_budgets' AND constraint_type = 'UNIQUE'
                     """
                 )
-                print("Added unique constraint to user_budgets table")
+                constraints = cur.fetchall()
+                constraint_names = [c[0] for c in constraints] if constraints else []
+                print(f"Existing unique constraints on user_budgets: {constraint_names}")
+                
+                # Only add our constraint if no unique constraint exists
+                if not constraint_names:
+                    cur.execute(
+                        """
+                        ALTER TABLE user_budgets 
+                        ADD CONSTRAINT user_budgets_unique 
+                        UNIQUE (username, category, household)
+                        """
+                    )
+                    print("Added unique constraint to user_budgets table")
+                else:
+                    print(f"Skipping constraint creation - existing constraints found: {constraint_names}")
+                    
             except Exception as constraint_error:
-                print(f"Unique constraint already exists or failed to add: {constraint_error}")
+                print(f"Constraint handling warning: {constraint_error}")
                 
         else:
             # Check if columns exist for SQLite
@@ -535,20 +552,9 @@ def set_user_budget(username, category, budget_limit):
                 raise create_error
         
         if USE_POSTGRES:
-            # Try with ON CONFLICT first, if it fails, fall back to manual upsert
+            # Use manual upsert approach to handle various constraint scenarios
             try:
-                cur.execute(
-                    """
-                    INSERT INTO user_budgets (username, category, budget_limit, updated_at, household) 
-                    VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s)
-                    ON CONFLICT (username, category, household) 
-                    DO UPDATE SET budget_limit = EXCLUDED.budget_limit, updated_at = CURRENT_TIMESTAMP
-                    """,
-                    (username, category, float(budget_limit), household)
-                )
-            except Exception as conflict_error:
-                print(f"SET_BUDGET WARNING: ON CONFLICT failed ({conflict_error}), trying manual upsert")
-                # Manual upsert - check if record exists first
+                # First check if record exists
                 cur.execute(
                     "SELECT id FROM user_budgets WHERE username = %s AND category = %s AND household = %s",
                     (username, category, household)
@@ -561,12 +567,39 @@ def set_user_budget(username, category, budget_limit):
                         "UPDATE user_budgets SET budget_limit = %s, updated_at = CURRENT_TIMESTAMP WHERE username = %s AND category = %s AND household = %s",
                         (float(budget_limit), username, category, household)
                     )
+                    print(f"SET_BUDGET DEBUG: Updated existing budget for {username}/{category}")
                 else:
                     # Insert new record
                     cur.execute(
                         "INSERT INTO user_budgets (username, category, budget_limit, updated_at, household) VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s)",
                         (username, category, float(budget_limit), household)
                     )
+                    print(f"SET_BUDGET DEBUG: Inserted new budget for {username}/{category}")
+                    
+            except Exception as manual_error:
+                print(f"SET_BUDGET ERROR: Manual upsert failed: {manual_error}")
+                # Rollback transaction and try again with a fresh connection
+                conn.rollback()
+                conn.close()
+                
+                # Try with a fresh connection and simpler approach
+                conn = get_conn()
+                cur = conn.cursor()
+                
+                # Delete any existing record and insert fresh
+                try:
+                    cur.execute(
+                        "DELETE FROM user_budgets WHERE username = %s AND category = %s",
+                        (username, category)
+                    )
+                    cur.execute(
+                        "INSERT INTO user_budgets (username, category, budget_limit, updated_at, household) VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s)",
+                        (username, category, float(budget_limit), household)
+                    )
+                    print(f"SET_BUDGET DEBUG: Replaced budget record for {username}/{category}")
+                except Exception as replace_error:
+                    print(f"SET_BUDGET CRITICAL: All upsert methods failed: {replace_error}")
+                    raise replace_error
         else:
             cur.execute(
                 """
