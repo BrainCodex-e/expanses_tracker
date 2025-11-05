@@ -15,6 +15,7 @@ from flask import (
     send_file,
     flash,
     session,
+    jsonify,
 )
 import os
 from functools import wraps
@@ -429,9 +430,7 @@ def update_expense(expense_id, tx_date, category, amount, payer, notes, split_wi
 
 def get_user_budgets(username):
     """Get all budget limits for a specific user from database"""
-    # TEMPORARY FIX: Always start with hardcoded budgets as fallback
-    fallback_budgets = BUDGET_LIMITS.get(username, {})
-    print(f"DEBUG: Hardcoded fallback for {username}: {fallback_budgets}")
+    print(f"DEBUG: Getting budgets for user '{username}'")
     
     try:
         conn = get_conn()
@@ -448,17 +447,17 @@ def get_user_budgets(username):
         print(f"DEBUG: user_budgets table exists: {table_exists}")
         
         if not table_exists:
-            print("DEBUG: user_budgets table missing, using hardcoded fallback")
+            print("DEBUG: user_budgets table missing, returning empty budget")
             conn.close()
-            return fallback_budgets
+            return {}
             
         # Get household for the user
         household = get_user_household(username)
         
         if USE_POSTGRES:
-            cur.execute("SELECT category, budget_limit FROM user_budgets WHERE username = %s AND household = %s", (username, household))
+            cur.execute("SELECT category, budget_limit FROM user_budgets WHERE username = %s", (username,))
         else:
-            cur.execute("SELECT category, budget_limit FROM user_budgets WHERE username = ? AND household = ?", (username, household))
+            cur.execute("SELECT category, budget_limit FROM user_budgets WHERE username = ?", (username,))
         
         budgets = {}
         rows = cur.fetchall()
@@ -471,19 +470,13 @@ def get_user_budgets(username):
         
         conn.close()
         
-        # If no database records found, use hardcoded fallback
-        if not budgets:
-            print(f"DEBUG: No database records for {username}, using hardcoded fallback")
-            return fallback_budgets
-        
-        # Use ONLY database budgets - don't merge with fallbacks to avoid adding up values
-        print(f"DEBUG: Using database budgets for {username}: {budgets}")
+        # Return only what's in the database - no fallbacks
+        print(f"DEBUG: Returning database budgets for {username}: {budgets}")
         return budgets
         
     except Exception as e:
         print(f"ERROR getting user budgets for {username}: {e}")
-        print(f"DEBUG: Using hardcoded fallback due to error")
-        return fallback_budgets
+        return {}
 
 
 def set_user_budget(username, category, budget_limit):
@@ -695,6 +688,29 @@ def cleanup_misc_category():
         return 0
 
 
+def reset_all_user_budgets():
+    """Reset all user budgets to clean state - removes inflated values from previous migrations"""
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        
+        if USE_POSTGRES:
+            cur.execute("DELETE FROM user_budgets")
+            rows_deleted = cur.rowcount
+        else:
+            cur.execute("DELETE FROM user_budgets")
+            rows_deleted = cur.rowcount
+        
+        conn.commit()
+        conn.close()
+        print(f"Reset all user budgets - deleted {rows_deleted} records")
+        return rows_deleted
+        
+    except Exception as e:
+        print(f"Error resetting user budgets: {e}")
+        return 0
+
+
 def migrate_budget_limits_to_db():
     """Migrate hardcoded BUDGET_LIMITS to database (run once)"""
     try:
@@ -738,10 +754,9 @@ app.config["SECRET_KEY"] = os.environ.get("SECRET_KEY", "dev-secret-for-flash")
 init_db()
 # Run database migrations
 migrate_db()
-# Migrate hardcoded budget data to database (one-time migration)
-migrate_budget_limits_to_db()
 # Clean up removed categories
 cleanup_misc_category()
+# Note: Budget migration is now disabled - use /reset/budgets route if needed
 
 # Session cookie hardening (can be disabled for local non-HTTPS testing by setting SESSION_COOKIE_SECURE=0)
 secure_cookies = os.environ.get("SESSION_COOKIE_SECURE", "1") != "0"
@@ -815,83 +830,58 @@ init_db()
 @app.route("/", methods=["GET"])
 @login_required
 def index():
-    # Settings from query params (simple): people and month
+    # Optimized for speed - only show current user's data
     current_user = session.get('user', 'erez')
-    household_people = get_default_people(current_user)
-    people_raw = request.args.get("people", ", ".join(household_people))
-    people = [p.strip() for p in people_raw.split(",") if p.strip()] or household_people
-
-    month_str = request.args.get("month")
-    if month_str:
-        try:
-            month = datetime.fromisoformat(month_str).date()
-        except Exception:
-            month = date.today().replace(day=1)
+    
+    # Get current month only
+    today = date.today()
+    month_start = date(today.year, today.month, 1)
+    if today.month == 12:
+        month_end = date(today.year + 1, 1, 1)
     else:
-        today = date.today()
-        month = date(today.year, today.month, 1)
+        month_end = date(today.year, today.month + 1, 1)
 
-    month_start = date(month.year, month.month, 1)
-    if month.month == 12:
-        month_end = date(month.year + 1, 1, 1)
-    else:
-        month_end = date(month.year, month.month + 1, 1)
-
-    # Load expenses filtered by current user's household
-    current_user = session.get('user', 'erez')  # Default to erez for backward compatibility
+    # Load only current user's expenses for speed
     df = load_expenses(user=current_user)
     if df.empty:
         dfm = pd.DataFrame()
+        user_total = 0.0
+        user_records = []
     else:
-        # normalize tx_date to date objects and filter by month
+        # Filter for current user and current month only
         df["tx_date"] = pd.to_datetime(df["tx_date"]).dt.date
-        mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end))
+        mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & \
+               (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end)) & \
+               (df["payer"].str.lower() == current_user.lower())
+        
         dfm = df[mask].copy()
-
-    total = float(dfm["amount"].sum()) if not dfm.empty else 0.0
-
-    # Prepare safe, JSON/template-friendly structures (native Python types)
-    if not dfm.empty:
-        by_person_s = dfm.groupby("payer")["amount"].sum().reindex(people, fill_value=0)
-        by_person_list = [(str(name), float(by_person_s.get(name, 0.0))) for name in by_person_s.index]
-
-        by_cat_s = dfm.groupby("category")["amount"].sum()
-        # sort by amount descending
-        by_cat_list = sorted(((str(k), float(v)) for k, v in by_cat_s.items()), key=lambda x: x[1], reverse=True)
-
-        # stringify dates in records so template can render cleanly
-        records = []
-        for r in dfm.to_dict(orient="records"):
-            r2 = dict(r)
-            if isinstance(r2.get("tx_date"), (datetime,)):
-                r2["tx_date"] = r2["tx_date"].date().isoformat()
-            else:
-                # if it's already a date object
+        
+        # Calculate user's total spending
+        user_total = float(dfm["amount"].sum()) if not dfm.empty else 0.0
+        
+        # Prepare user's expense records
+        user_records = []
+        if not dfm.empty:
+            for r in dfm.to_dict(orient="records"):
+                r2 = dict(r)
                 try:
-                    r2["tx_date"] = r2["tx_date"].isoformat()
-                except Exception:
+                    r2["tx_date"] = pd.to_datetime(r2["tx_date"]).date().isoformat()
+                except:
                     r2["tx_date"] = str(r2.get("tx_date"))
-            # make sure amounts are native floats
-            try:
-                r2["amount"] = float(r2.get("amount", 0.0))
-            except Exception:
-                r2["amount"] = 0.0
-            records.append(r2)
-    else:
-        by_person_list = [(p, 0.0) for p in people]
-        by_cat_list = []
-        records = []
+                try:
+                    r2["amount"] = float(r2.get("amount", 0.0))
+                except:
+                    r2["amount"] = 0.0
+                user_records.append(r2)
 
     import time
     return render_template(
         "index.html",
-        people=people,
+        current_user=current_user,
         categories=CATEGORIES,
         month_start=month_start,
-        total=total,
-        by_person_list=by_person_list,
-        by_cat_list=by_cat_list,
-        records=records,
+        user_total=user_total,
+        user_records=user_records,
         timestamp=int(time.time()),
     )
 
@@ -931,33 +921,28 @@ def add():
 @app.route("/quick-add", methods=["POST"])
 @login_required
 def quick_add():
-    """Quick add endpoint for predefined expense types"""
+    """Fast AJAX endpoint for quick expense adding"""
+    current_user = session.get('user', 'erez')
+    
     try:
-        category = request.form.get("category")
-        amount = request.form.get("amount")
+        category = request.form["category"]
+        amount = float(request.form["amount"])
         notes = request.form.get("notes", "")
-        current_user = session.get('user')
+        tx_date = date.today()
         
-        if not category or not amount or not current_user:
-            return {"success": False, "message": "Missing required fields"}, 400
+        # Add expense for current user only
+        add_expense(tx_date.isoformat(), category, amount, current_user, notes, None)
         
-        # Use today's date for quick adds
-        today = date.today().isoformat()
-        
-        # Validate amount
-        try:
-            amount_float = float(amount)
-            if amount_float <= 0:
-                return {"success": False, "message": "Amount must be positive"}, 400
-        except (ValueError, TypeError):
-            return {"success": False, "message": "Invalid amount"}, 400
-        
-        # Add the expense
-        add_expense(today, category, amount_float, current_user, notes, None)
-        
-        return {"success": True, "message": f"Added {notes} for ₪{amount_float}"}, 200
+        return jsonify({
+            "success": True,
+            "message": f"₪{amount} added to {category}"
+        })
         
     except Exception as e:
+        return jsonify({
+            "success": False,
+            "message": f"Failed to add expense: {str(e)}"
+        }), 400
         print(f"Quick add error: {e}")
         return {"success": False, "message": "Failed to add expense"}, 500
 
@@ -1391,7 +1376,13 @@ def update_budget():
 @app.route("/status")
 def status():
     """Simple status check - no login required"""
+    import time
+    import os
+    start_time = time.time()
+    
     try:
+        # Test database performance
+        db_start = time.time()
         conn = get_conn()
         cur = conn.cursor()
         
@@ -1411,20 +1402,52 @@ def status():
         
         count = count_result[0] if count_result else 0
         conn.close()
+        db_time = time.time() - db_start
         
         # Current date info for comparison
         today = date.today()
         month_start = date(today.year, today.month, 1)
+        total_time = time.time() - start_time
+        
+        # Performance indicators
+        db_performance = "🟢 Fast" if db_time < 0.1 else "🟡 Slow" if db_time < 0.5 else "🔴 Very Slow"
+        overall_performance = "🟢 Fast" if total_time < 0.2 else "🟡 Slow" if total_time < 1.0 else "🔴 Very Slow"
         
         html = f"""
-        <h1>App Status & Debug</h1>
-        <p>✅ Database connection: OK</p>
-        <p>📊 Total expenses: {count}</p>
-        <p>🗄️ Database type: {'PostgreSQL' if USE_POSTGRES else 'SQLite'}</p>
-        <p>📅 Current date: {today}</p>
-        <p>📅 Current month start: {month_start}</p>
+        <h1>App Status & Performance</h1>
         
-        <h3>Sample Expenses (Latest 3):</h3>
+        <h3>🚀 Performance Metrics</h3>
+        <table border="1" style="border-collapse: collapse;">
+            <tr><th>Metric</th><th>Value</th><th>Status</th></tr>
+            <tr><td>Database Query Time</td><td>{db_time:.3f}s</td><td>{db_performance}</td></tr>
+            <tr><td>Total Page Load</td><td>{total_time:.3f}s</td><td>{overall_performance}</td></tr>
+            <tr><td>Database Type</td><td>{'PostgreSQL (Production)' if USE_POSTGRES else 'SQLite (Local)'}</td><td>{'🌐' if USE_POSTGRES else '💻'}</td></tr>
+        </table>
+        
+        <h3>🔧 Hosting Info</h3>
+        <p><strong>Environment:</strong> {'Production (Render Free Tier)' if USE_POSTGRES else 'Local Development'}</p>
+        <p><strong>Total Expenses:</strong> {count}</p>
+        <p><strong>Current Date:</strong> {today}</p>
+        <p><strong>Memory Usage:</strong> {os.environ.get('MEMORY_LIMIT', 'Unknown')}</p>
+        
+        <h3>⚡ Performance Tips</h3>
+        <ul>
+            <li><strong>For Free Tier:</strong> Keep app active to prevent cold starts (visit every 15 min)</li>
+            <li><strong>Mobile:</strong> Use WiFi when possible - cellular data adds latency</li>
+            <li><strong>Upgrade:</strong> Paid Render plan ($7/month) eliminates cold starts</li>
+            <li><strong>Database:</strong> Paid PostgreSQL tier much faster than free</li>
+        </ul>
+        
+        <h3>📱 Mobile Optimization</h3>
+        <p>If mobile feels slow, it's likely due to:</p>
+        <ul>
+            <li>Free tier server sleeping (cold starts)</li>
+            <li>Database query delays</li>
+            <li>Chart generation on server</li>
+            <li>Multiple network requests per page</li>
+        </ul>
+        
+        <h3>Sample Data</h3>
         <table border="1">
             <tr><th>Date</th><th>Payer</th><th>Category</th><th>Amount</th></tr>
         """
@@ -1432,7 +1455,7 @@ def status():
         for expense in sample_expenses:
             html += f"""
             <tr>
-                <td>{expense[0]} ({type(expense[0]).__name__})</td>
+                <td>{expense[0]}</td>
                 <td>"{expense[1]}"</td>
                 <td>{expense[2]}</td>
                 <td>₪{expense[3]}</td>
@@ -1441,14 +1464,9 @@ def status():
         
         html += """
         </table>
+        
         <hr>
-        <p><strong>Check if:</strong></p>
-        <ul>
-            <li>Dates match current month (November 2025)</li>
-            <li>Payer names match exactly (case sensitive)</li>
-            <li>Date format is correct</li>
-        </ul>
-        <p><a href="/logs/budget">→ Detailed Budget Logs (login required)</a></p>
+        <p><a href="/logs/budget">→ Detailed Budget Logs</a></p>
         <p><a href="/">→ Main App</a></p>
         """
         
@@ -1458,6 +1476,7 @@ def status():
         return f"""
         <h1>App Status</h1>
         <p>❌ Error: {str(e)}</p>
+        <p><strong>Time taken:</strong> {time.time() - start_time:.3f}s</p>
         <p><a href="/">→ Main App</a></p>
         """
 
@@ -1477,6 +1496,28 @@ def cleanup_misc_route():
     except Exception as e:
         return f"""
         <h1>Misc Category Cleanup</h1>
+        <p>❌ Error: {str(e)}</p>
+        <p><a href="/">→ Main App</a></p>
+        """
+
+
+@app.route("/reset/budgets")
+def reset_budgets_route():
+    """Reset all user budgets to clean state - removes inflated values"""
+    try:
+        deleted_count = reset_all_user_budgets()
+        return f"""
+        <h1>Budget Reset Complete</h1>
+        <p>✅ Reset all user budgets - deleted {deleted_count} records</p>
+        <p>All budget values have been cleared. Users can now set fresh budget limits.</p>
+        <p>This fixes the issue where budgets were showing inflated values like ₪2000.</p>
+        <p><a href="/budget/settings">→ Set Your Budget Limits</a></p>
+        <p><a href="/budget/dashboard">→ Budget Dashboard</a></p>
+        <p><a href="/">→ Main App</a></p>
+        """
+    except Exception as e:
+        return f"""
+        <h1>Budget Reset Error</h1>
         <p>❌ Error: {str(e)}</p>
         <p><a href="/">→ Main App</a></p>
         """
