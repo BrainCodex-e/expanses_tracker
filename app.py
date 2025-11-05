@@ -50,8 +50,20 @@ CATEGORIES = [
     "Arnoni",
     "School Expenses",
 ]
+# Household configuration - maps users to their household groups
+HOUSEHOLD_USERS = {
+    "erez_lia": ["Erez", "Lia"],
+    "parents": ["mom", "dad"]
+}
+
+# User to household mapping for quick lookup
+USER_HOUSEHOLD = {}
+for household, users in HOUSEHOLD_USERS.items():
+    for user in users:
+        USER_HOUSEHOLD[user] = household
+
 # Keep these as backend constants for now, but they could be made configurable
-DEFAULT_PEOPLE = ["erez", "lia"]
+DEFAULT_PEOPLE = ["erez", "lia"]  # This will be dynamic based on user's household
 
 # Budget limits per person per category (in ₪)
 BUDGET_LIMITS = {
@@ -92,7 +104,8 @@ def init_db():
                 amount DECIMAL(10,2) NOT NULL,
                 payer TEXT NOT NULL,
                 notes TEXT,
-                split_with TEXT DEFAULT NULL
+                split_with TEXT DEFAULT NULL,
+                household TEXT DEFAULT 'default'
             )
             """
         )
@@ -104,9 +117,10 @@ def init_db():
                 username TEXT NOT NULL,
                 category TEXT NOT NULL,
                 budget_limit DECIMAL(10,2) NOT NULL,
+                household TEXT DEFAULT 'default',
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(username, category)
+                UNIQUE(username, category, household)
             )
             """
         )
@@ -125,7 +139,8 @@ def init_db():
                 amount REAL NOT NULL,
                 payer TEXT NOT NULL,
                 notes TEXT,
-                split_with TEXT DEFAULT NULL
+                split_with TEXT DEFAULT NULL,
+                household TEXT DEFAULT 'default'
             )
             """
         )
@@ -137,9 +152,10 @@ def init_db():
                 username TEXT NOT NULL,
                 category TEXT NOT NULL,
                 budget_limit REAL NOT NULL,
+                household TEXT DEFAULT 'default',
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
-                UNIQUE(username, category)
+                UNIQUE(username, category, household)
             )
             """
         )
@@ -157,22 +173,61 @@ def get_conn():
 
 
 def migrate_db():
-    """Add migration for split_with column if it doesn't exist"""
+    """Add migrations for split_with and household columns if they don't exist"""
     try:
         conn = get_conn()
         cur = conn.cursor()
         if USE_POSTGRES:
             cur.execute("ALTER TABLE expenses ADD COLUMN IF NOT EXISTS split_with TEXT DEFAULT NULL")
+            cur.execute("ALTER TABLE expenses ADD COLUMN IF NOT EXISTS household TEXT DEFAULT 'default'")
+            cur.execute("ALTER TABLE user_budgets ADD COLUMN IF NOT EXISTS household TEXT DEFAULT 'default'")
         else:
-            # Check if column exists for SQLite
+            # Check if columns exist for SQLite
             cur.execute("PRAGMA table_info(expenses)")
             columns = [row[1] for row in cur.fetchall()]
             if 'split_with' not in columns:
                 cur.execute("ALTER TABLE expenses ADD COLUMN split_with TEXT DEFAULT NULL")
+            if 'household' not in columns:
+                cur.execute("ALTER TABLE expenses ADD COLUMN household TEXT DEFAULT 'default'")
+                
+            # Check user_budgets table
+            cur.execute("PRAGMA table_info(user_budgets)")
+            budget_columns = [row[1] for row in cur.fetchall()]
+            if 'household' not in budget_columns:
+                cur.execute("ALTER TABLE user_budgets ADD COLUMN household TEXT DEFAULT 'default'")
         conn.commit()
         conn.close()
+        print("Database migration completed successfully")
     except Exception as e:
         print(f"Migration warning: {e}")
+
+
+def get_user_household(username):
+    """Get the household for a given user"""
+    # Try exact match first, then case-insensitive
+    if username in USER_HOUSEHOLD:
+        return USER_HOUSEHOLD[username]
+    
+    # Case-insensitive fallback
+    username_lower = username.lower()
+    for user, household in USER_HOUSEHOLD.items():
+        if user.lower() == username_lower:
+            return household
+    
+    return "default"
+
+
+def get_household_users(username):
+    """Get all users in the same household as the given user"""
+    household = get_user_household(username)
+    return HOUSEHOLD_USERS.get(household, [username])
+
+
+def get_default_people(username=None):
+    """Get default people list for the user's household"""
+    if username:
+        return get_household_users(username)
+    return DEFAULT_PEOPLE
 
 
 def add_expense(tx_date, category, amount, payer, notes, split_with=None):
@@ -180,28 +235,50 @@ def add_expense(tx_date, category, amount, payer, notes, split_with=None):
     conn = get_conn()
     cur = conn.cursor()
     
+    # Get household for the payer
+    household = get_user_household(payer)
+    print(f"DEBUG: Using household '{household}' for user '{payer}'")
+    
     if USE_POSTGRES:
         cur.execute(
-            "INSERT INTO expenses (ts, tx_date, category, amount, payer, notes, split_with) VALUES (%s, %s, %s, %s, %s, %s, %s)",
-            (datetime.utcnow(), tx_date, category, float(amount), payer, notes, split_with),
+            "INSERT INTO expenses (ts, tx_date, category, amount, payer, notes, split_with, household) VALUES (%s, %s, %s, %s, %s, %s, %s, %s)",
+            (datetime.utcnow(), tx_date, category, float(amount), payer, notes, split_with, household),
         )
     else:
         cur.execute(
-            "INSERT INTO expenses (ts, tx_date, category, amount, payer, notes, split_with) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (datetime.utcnow().isoformat(timespec="seconds"), tx_date, category, float(amount), payer, notes, split_with),
+            "INSERT INTO expenses (ts, tx_date, category, amount, payer, notes, split_with, household) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (datetime.utcnow().isoformat(timespec="seconds"), tx_date, category, float(amount), payer, notes, split_with, household),
         )
     
     conn.commit()
     conn.close()
-    print(f"DEBUG: Expense added successfully to database")
+    print(f"DEBUG: Expense added successfully to database with household '{household}'")
 
 
-def load_expenses():
+def load_expenses(user=None):
     if USE_POSTGRES or Path(DB_PATH).exists():
         conn = get_conn()
-        df = pd.read_sql_query("SELECT * FROM expenses ORDER BY tx_date DESC, id DESC", conn, parse_dates=["tx_date"])
+        
+        if user:
+            # Filter by household
+            household = get_user_household(user)
+            household_users = get_household_users(user)
+            household_users_str = "', '".join(household_users)
+            
+            query = f"""
+            SELECT * FROM expenses 
+            WHERE household = '{household}' OR payer IN ('{household_users_str}') 
+            ORDER BY tx_date DESC, id DESC
+            """
+            print(f"DEBUG: Loading expenses for user '{user}' in household '{household}' with users: {household_users}")
+            print(f"DEBUG: Query = {query}")
+        else:
+            query = "SELECT * FROM expenses ORDER BY tx_date DESC, id DESC"
+            print("DEBUG: Loading all expenses (no user filter)")
+        
+        df = pd.read_sql_query(query, conn, parse_dates=["tx_date"])
         conn.close()
-        print(f"DEBUG: Loaded {len(df)} total expenses from database")
+        print(f"DEBUG: Loaded {len(df)} expenses from database")
         return df
     else:
         print("DEBUG: No database found, returning empty DataFrame")
@@ -296,10 +373,13 @@ def get_user_budgets(username):
             conn.close()
             return fallback_budgets
             
+        # Get household for the user
+        household = get_user_household(username)
+        
         if USE_POSTGRES:
-            cur.execute("SELECT category, budget_limit FROM user_budgets WHERE username = %s", (username,))
+            cur.execute("SELECT category, budget_limit FROM user_budgets WHERE username = %s AND household = %s", (username, household))
         else:
-            cur.execute("SELECT category, budget_limit FROM user_budgets WHERE username = ?", (username,))
+            cur.execute("SELECT category, budget_limit FROM user_budgets WHERE username = ? AND household = ?", (username, household))
         
         budgets = {}
         rows = cur.fetchall()
@@ -335,23 +415,26 @@ def set_user_budget(username, category, budget_limit):
     conn = get_conn()
     cur = conn.cursor()
     
+    # Get household for the user
+    household = get_user_household(username)
+    
     if USE_POSTGRES:
         cur.execute(
             """
-            INSERT INTO user_budgets (username, category, budget_limit, updated_at) 
-            VALUES (%s, %s, %s, CURRENT_TIMESTAMP)
-            ON CONFLICT (username, category) 
+            INSERT INTO user_budgets (username, category, budget_limit, updated_at, household) 
+            VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s)
+            ON CONFLICT (username, category, household) 
             DO UPDATE SET budget_limit = EXCLUDED.budget_limit, updated_at = CURRENT_TIMESTAMP
             """,
-            (username, category, float(budget_limit))
+            (username, category, float(budget_limit), household)
         )
     else:
         cur.execute(
             """
-            INSERT OR REPLACE INTO user_budgets (username, category, budget_limit, updated_at) 
-            VALUES (?, ?, ?, datetime('now'))
+            INSERT OR REPLACE INTO user_budgets (username, category, budget_limit, updated_at, household) 
+            VALUES (?, ?, ?, datetime('now'), ?)
             """,
-            (username, category, float(budget_limit))
+            (username, category, float(budget_limit), household)
         )
     
     conn.commit()
@@ -363,10 +446,13 @@ def delete_user_budget(username, category):
     conn = get_conn()
     cur = conn.cursor()
     
+    # Get household for the user
+    household = get_user_household(username)
+    
     if USE_POSTGRES:
-        cur.execute("DELETE FROM user_budgets WHERE username = %s AND category = %s", (username, category))
+        cur.execute("DELETE FROM user_budgets WHERE username = %s AND category = %s AND household = %s", (username, category, household))
     else:
-        cur.execute("DELETE FROM user_budgets WHERE username = ? AND category = ?", (username, category))
+        cur.execute("DELETE FROM user_budgets WHERE username = ? AND category = ? AND household = ?", (username, category, household))
     
     conn.commit()
     conn.close()
@@ -475,7 +561,9 @@ def load_users_from_env():
         # development fallback (weak default). Encourage setting USERS in production.
         users["Erez"] = generate_password_hash("password")
         users["Lia"] = generate_password_hash("password")
-        print("Warning: USERS env var not set; using default weak passwords. Set USERS='user:pass,user2:pass' in production.")
+        users["mom"] = generate_password_hash("password")
+        users["dad"] = generate_password_hash("password")
+        print("Warning: USERS env var not set; using default weak passwords. Set USERS='user:pass,user2:pass,mom:pass,dad:pass' in production.")
     return users
 
 
@@ -519,8 +607,10 @@ init_db()
 @login_required
 def index():
     # Settings from query params (simple): people and month
-    people_raw = request.args.get("people", ", ".join(DEFAULT_PEOPLE))
-    people = [p.strip() for p in people_raw.split(",") if p.strip()] or DEFAULT_PEOPLE
+    current_user = session.get('user', 'erez')
+    household_people = get_default_people(current_user)
+    people_raw = request.args.get("people", ", ".join(household_people))
+    people = [p.strip() for p in people_raw.split(",") if p.strip()] or household_people
 
     month_str = request.args.get("month")
     if month_str:
@@ -538,7 +628,9 @@ def index():
     else:
         month_end = date(month.year, month.month + 1, 1)
 
-    df = load_expenses()
+    # Load expenses filtered by current user's household
+    current_user = session.get('user', 'erez')  # Default to erez for backward compatibility
+    df = load_expenses(user=current_user)
     if df.empty:
         dfm = pd.DataFrame()
     else:
@@ -607,7 +699,9 @@ def add():
         return redirect(url_for("index"))
 
     category = request.form.get("category") or CATEGORIES[0]
-    payer = request.form.get("payer") or DEFAULT_PEOPLE[0]
+    current_user = session.get('user', 'erez')
+    household_people = get_default_people(current_user)
+    payer = request.form.get("payer") or household_people[0]
     amount = request.form.get("amount") or 0
     notes = request.form.get("notes") or ""
     split_with = request.form.get("split_with") or None
@@ -678,10 +772,13 @@ def edit_expense_form(expense_id):
         except:
             pass
     
+    current_user = session.get('user', 'erez')
+    household_people = get_default_people(current_user)
+    
     return render_template("edit_expense.html", 
                          expense=expense, 
                          categories=CATEGORIES, 
-                         people=DEFAULT_PEOPLE)
+                         people=household_people)
 
 
 @app.route("/edit/<int:expense_id>", methods=["POST"])
@@ -697,7 +794,9 @@ def update_expense_route(expense_id):
         return redirect(url_for("edit_expense_form", expense_id=expense_id))
 
     category = request.form.get("category") or CATEGORIES[0]
-    payer = request.form.get("payer") or DEFAULT_PEOPLE[0]
+    current_user = session.get('user', 'erez')
+    household_people = get_default_people(current_user)
+    payer = request.form.get("payer") or household_people[0]
     amount = request.form.get("amount") or 0
     notes = request.form.get("notes") or ""
     split_with = request.form.get("split_with") or None
@@ -739,7 +838,8 @@ def delete():
 @login_required
 def download_csv():
     month = request.args.get("month")
-    df = load_expenses()
+    current_user = session.get('user', 'erez')
+    df = load_expenses(user=current_user)
     if df.empty:
         return "No data", 400
     if month:
@@ -765,8 +865,9 @@ def download_csv():
 @app.route("/plot/<kind>.png")
 @login_required
 def plot_png(kind):
-    # kind: 'by_cat' or 'by_person' - shows combined data for all users
-    df = load_expenses()
+    # kind: 'by_cat' or 'by_person' - shows combined data for household users
+    current_user = session.get('user', 'erez')
+    df = load_expenses(user=current_user)
     if df.empty:
         return "No data", 400
     df["tx_date"] = pd.to_datetime(df["tx_date"]).dt.date
@@ -821,8 +922,9 @@ def plot_png(kind):
 @app.route("/plot/<person>/<kind>.png")
 @login_required
 def plot_user_png(person, kind):
-    # kind: 'by_cat' - shows individual user data
-    df = load_expenses()
+    # kind: 'by_cat' - shows individual user data within household
+    current_user = session.get('user', 'erez')
+    df = load_expenses(user=current_user)
     if df.empty:
         return "No data", 400
     df["tx_date"] = pd.to_datetime(df["tx_date"]).dt.date
@@ -890,9 +992,10 @@ def plot_user_png(person, kind):
 @app.route("/budget/<person>.png")
 @login_required
 def budget_progress_png(person):
-    """Generate budget progress chart for a specific person"""
-    df = load_expenses()
-    print(f"DEBUG: Total expenses loaded: {len(df)}")
+    """Generate budget progress chart for a specific person within household"""
+    current_user = session.get('user', 'erez')
+    df = load_expenses(user=current_user)
+    print(f"DEBUG: Total expenses loaded for household: {len(df)}")
     if df.empty:
         return "No data", 400
     
@@ -1150,6 +1253,25 @@ def cleanup_misc_route():
         <p>❌ Error: {str(e)}</p>
         <p><a href="/">→ Main App</a></p>
         """
+
+
+@app.route("/debug/household")
+@login_required
+def debug_household():
+    """Debug route to show household information for current user"""
+    current_user = session.get('user', 'erez')
+    household = get_user_household(current_user)
+    household_users = get_household_users(current_user)
+    
+    debug_info = {
+        'current_user': current_user,
+        'household': household,
+        'household_users': household_users,
+        'all_household_mappings': HOUSEHOLD_USERS,
+        'session_data': dict(session)
+    }
+    
+    return f"<pre>{debug_info}</pre>"
 
 
 @app.route("/debug/csrf")
