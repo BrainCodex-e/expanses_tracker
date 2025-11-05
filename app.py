@@ -5,6 +5,7 @@ import io
 import base64
 import urllib.parse as urlparse
 import traceback
+import time
 
 from flask import (
     Flask,
@@ -939,12 +940,11 @@ def quick_add():
         })
         
     except Exception as e:
+        print(f"Quick add error: {e}")
         return jsonify({
             "success": False,
             "message": f"Failed to add expense: {str(e)}"
         }), 400
-        print(f"Quick add error: {e}")
-        return {"success": False, "message": "Failed to add expense"}, 500
 
 
 @app.route("/edit/<int:expense_id>", methods=["GET"])
