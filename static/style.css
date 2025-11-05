@@ -22,8 +22,9 @@ body {
   border: none;
   border-radius: var(--border-radius);
   transition: var(--transition);
-  background: rgba(255, 255, 255, 0.95);
+  background: rgba(45, 55, 72, 0.95);
   backdrop-filter: blur(10px);
+  color: #ffffff;
 }
 
 .card:hover {
@@ -167,11 +168,12 @@ h1, h5 {
 
 .expense-content {
   padding: 12px 16px;
-  background: #fff;
+  background: rgba(45, 55, 72, 0.95);
   position: relative;
   z-index: 2;
   width: 100%;
   transition: transform 0.3s ease;
+  color: #ffffff;
 }
 
 .delete-action {
@@ -240,17 +242,19 @@ h1, h5 {
 
 /* Enhanced Form Elements */
 .form-control, .form-select {
-  border: 2px solid #e1e5e9;
+  border: 2px solid #4a5568;
   border-radius: 8px;
   transition: var(--transition);
-  background: rgba(255, 255, 255, 0.9);
+  background: rgba(26, 32, 44, 0.8);
+  color: #ffffff;
   font-weight: 500;
 }
 
 .form-control:focus, .form-select:focus {
   border-color: #667eea;
   box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.15);
-  background: white;
+  background: rgba(26, 32, 44, 0.9);
+  color: #ffffff;
 }
 
 .form-label {
@@ -279,7 +283,8 @@ h1, h5 {
 
 /* Statistics Cards */
 .stats-card {
-  background: white;
+  background: rgba(45, 55, 72, 0.95);
+  color: #ffffff;
   border-radius: var(--border-radius);
   padding: 1.5rem;
   text-align: center;
@@ -525,32 +530,62 @@ h1, h5 {
   
   /* Expense cards in dark mode */
   .expense-content {
-    background: rgba(45, 55, 72, 0.95);
+    background: rgba(45, 55, 72, 0.95) !important;
+    color: #ffffff !important;
+  }
+  
+  /* Override all white backgrounds */
+  .card,
+  .card-body,
+  .expense-card,
+  .expense-content,
+  .stats-card {
+    background: rgba(45, 55, 72, 0.95) !important;
     color: #ffffff !important;
   }
   
   /* Table styling */
   .table {
     color: #ffffff !important;
+    background: rgba(45, 55, 72, 0.95) !important;
   }
   
   .table th,
   .table td {
     color: #ffffff !important;
     border-color: #4a5568;
+    background: rgba(45, 55, 72, 0.95) !important;
   }
   
   /* Stats cards */
   .stats-card {
-    background: rgba(45, 55, 72, 0.95);
+    background: rgba(45, 55, 72, 0.95) !important;
     color: #ffffff !important;
   }
   
   /* Alert styling */
   .alert-info {
-    background: rgba(79, 172, 254, 0.2);
+    background: rgba(79, 172, 254, 0.2) !important;
     border-color: #4facfe;
     color: #ffffff !important;
+  }
+  
+  /* Button and form fixes */
+  .btn,
+  .form-control,
+  .form-select {
+    background: rgba(26, 32, 44, 0.8) !important;
+    color: #ffffff !important;
+    border-color: #4a5568 !important;
+  }
+  
+  /* Dropdown and select backgrounds */
+  .dropdown-menu,
+  .list-group,
+  .list-group-item {
+    background: rgba(45, 55, 72, 0.95) !important;
+    color: #ffffff !important;
+    border-color: #4a5568 !important;
   }
 }
 
@@ -588,16 +623,41 @@ body.dark-theme * {
 
 /* Additional dark mode class for manual activation */
 .dark-mode {
-  background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+  background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%) !important;
   color: #ffffff !important;
 }
 
 .dark-mode *,
 .dark-mode .card,
+.dark-mode .card-body,
+.dark-mode .expense-card,
+.dark-mode .expense-content,
+.dark-mode .stats-card,
 .dark-mode .form-control,
 .dark-mode .form-select,
 .dark-mode .table,
+.dark-mode .table th,
+.dark-mode .table td,
 .dark-mode .badge,
-.dark-mode .alert {
+.dark-mode .alert,
+.dark-mode .dropdown-menu,
+.dark-mode .list-group,
+.dark-mode .list-group-item {
   color: #ffffff !important;
+  background: rgba(45, 55, 72, 0.95) !important;
+}
+
+/* Force dark backgrounds on all containers */
+.dark-mode div,
+.dark-mode section,
+.dark-mode article,
+.dark-mode aside,
+.dark-mode main {
+  background-color: rgba(45, 55, 72, 0.95) !important;
+}
+
+/* Override Bootstrap white backgrounds */
+.dark-mode .bg-white,
+.dark-mode .bg-light {
+  background-color: rgba(45, 55, 72, 0.95) !important;
 }
