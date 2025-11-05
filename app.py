@@ -842,8 +842,8 @@ def index():
     else:
         month_end = date(today.year, today.month + 1, 1)
 
-    # Load ALL expenses for household data
-    df = load_expenses()
+    # Load expenses for current user's household only
+    df = load_expenses(user=current_user)
     
     if df.empty:
         dfm = pd.DataFrame()
@@ -874,13 +874,13 @@ def index():
             by_cat = dfm.groupby("category")["amount"].sum().to_dict()
             by_cat_list = sorted(by_cat.items(), key=lambda x: x[1], reverse=True)
             
-            # Get all people from the data
-            people = sorted(dfm["payer"].unique().tolist())
+            # Get people from current user's household
+            people = get_household_users(current_user)
         else:
             total = 0.0
             by_person_list = []
             by_cat_list = []
-            people = DEFAULT_PEOPLE
+            people = get_household_users(current_user)
         
         # Calculate current user's individual data
         user_mask = dfm["payer"].str.lower() == current_user.lower()
