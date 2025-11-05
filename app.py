@@ -224,26 +224,36 @@ def migrate_db():
 
 
 def get_user_household(username):
-    """Get the household for a given user with case-insensitive matching"""
-    # Try exact match first
-    if username in USER_HOUSEHOLD:
-        return USER_HOUSEHOLD[username]
+    """Get the household for a given user with case-insensitive matching and production fallback"""
+    if not username:
+        print("WARNING: get_user_household called with empty username")
+        return "default"
     
-    # Case-insensitive fallback for common mapping issues
-    username_lower = username.lower()
-    for user, household in USER_HOUSEHOLD.items():
-        if user.lower() == username_lower:
-            return household
-    
-    # Special case handling for authentication vs household name mismatches
-    if username_lower == 'erez':
-        return 'erez_lia'
-    elif username_lower == 'lia':
-        return 'erez_lia'
-    elif username_lower in ['mom', 'dad']:
-        return 'parents'
-    
-    return "default"
+    try:
+        # Try exact match first
+        if username in USER_HOUSEHOLD:
+            return USER_HOUSEHOLD[username]
+        
+        # Case-insensitive fallback for common mapping issues
+        username_lower = username.lower()
+        for user, household in USER_HOUSEHOLD.items():
+            if user.lower() == username_lower:
+                return household
+        
+        # Special case handling for authentication vs household name mismatches
+        if username_lower == 'erez':
+            return 'erez_lia'
+        elif username_lower == 'lia':
+            return 'erez_lia'
+        elif username_lower in ['mom', 'dad']:
+            return 'parents'
+        
+        print(f"WARNING: No household found for user '{username}', using 'default'")
+        return "default"
+        
+    except Exception as e:
+        print(f"ERROR in get_user_household for '{username}': {e}")
+        return "default"
 
 
 def get_household_users(username):
@@ -449,50 +459,140 @@ def get_user_budgets(username):
 
 def set_user_budget(username, category, budget_limit):
     """Set or update a budget limit for a user and category"""
-    conn = get_conn()
-    cur = conn.cursor()
+    print(f"SET_BUDGET DEBUG: Setting budget for user '{username}', category '{category}', amount {budget_limit}")
     
-    # Get household for the user
-    household = get_user_household(username)
-    
-    if USE_POSTGRES:
-        cur.execute(
-            """
-            INSERT INTO user_budgets (username, category, budget_limit, updated_at, household) 
-            VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s)
-            ON CONFLICT (username, category, household) 
-            DO UPDATE SET budget_limit = EXCLUDED.budget_limit, updated_at = CURRENT_TIMESTAMP
-            """,
-            (username, category, float(budget_limit), household)
-        )
-    else:
-        cur.execute(
-            """
-            INSERT OR REPLACE INTO user_budgets (username, category, budget_limit, updated_at, household) 
-            VALUES (?, ?, ?, datetime('now'), ?)
-            """,
-            (username, category, float(budget_limit), household)
-        )
-    
-    conn.commit()
-    conn.close()
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        
+        # Get household for the user with fallback to 'default'
+        try:
+            household = get_user_household(username)
+            print(f"SET_BUDGET DEBUG: User '{username}' belongs to household '{household}'")
+        except Exception as e:
+            print(f"SET_BUDGET WARNING: Household lookup failed for '{username}': {e}, using 'default'")
+            household = 'default'
+        
+        # First try to ensure user_budgets table exists (production safety)
+        try:
+            if USE_POSTGRES:
+                cur.execute("SELECT 1 FROM user_budgets LIMIT 1")
+            else:
+                cur.execute("SELECT 1 FROM user_budgets LIMIT 1")
+        except Exception as table_error:
+            print(f"SET_BUDGET ERROR: user_budgets table missing or inaccessible: {table_error}")
+            # Try to create the table
+            try:
+                if USE_POSTGRES:
+                    cur.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS user_budgets (
+                            id SERIAL PRIMARY KEY,
+                            username TEXT NOT NULL,
+                            category TEXT NOT NULL,
+                            budget_limit DECIMAL(10,2) NOT NULL,
+                            household TEXT DEFAULT 'default',
+                            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE(username, category, household)
+                        )
+                        """
+                    )
+                else:
+                    cur.execute(
+                        """
+                        CREATE TABLE IF NOT EXISTS user_budgets (
+                            id INTEGER PRIMARY KEY AUTOINCREMENT,
+                            username TEXT NOT NULL,
+                            category TEXT NOT NULL,
+                            budget_limit REAL NOT NULL,
+                            household TEXT DEFAULT 'default',
+                            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                            updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                            UNIQUE(username, category, household)
+                        )
+                        """
+                    )
+                conn.commit()
+                print(f"SET_BUDGET DEBUG: Created missing user_budgets table")
+            except Exception as create_error:
+                print(f"SET_BUDGET CRITICAL: Cannot create user_budgets table: {create_error}")
+                raise create_error
+        
+        if USE_POSTGRES:
+            cur.execute(
+                """
+                INSERT INTO user_budgets (username, category, budget_limit, updated_at, household) 
+                VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s)
+                ON CONFLICT (username, category, household) 
+                DO UPDATE SET budget_limit = EXCLUDED.budget_limit, updated_at = CURRENT_TIMESTAMP
+                """,
+                (username, category, float(budget_limit), household)
+            )
+        else:
+            cur.execute(
+                """
+                INSERT OR REPLACE INTO user_budgets (username, category, budget_limit, updated_at, household) 
+                VALUES (?, ?, ?, datetime('now'), ?)
+                """,
+                (username, category, float(budget_limit), household)
+            )
+        
+        conn.commit()
+        conn.close()
+        print(f"SET_BUDGET DEBUG: Successfully set budget for {username}/{category} = {budget_limit}")
+        
+    except Exception as e:
+        print(f"SET_BUDGET ERROR: Failed to set budget for {username}/{category}: {str(e)}")
+        print(f"SET_BUDGET ERROR TYPE: {type(e).__name__}")
+        import traceback
+        traceback.print_exc()
+        raise
 
 
 def delete_user_budget(username, category):
     """Delete a budget limit for a user and category"""
-    conn = get_conn()
-    cur = conn.cursor()
+    print(f"DELETE_BUDGET DEBUG: Deleting budget for user '{username}', category '{category}'")
     
-    # Get household for the user
-    household = get_user_household(username)
-    
-    if USE_POSTGRES:
-        cur.execute("DELETE FROM user_budgets WHERE username = %s AND category = %s AND household = %s", (username, category, household))
-    else:
-        cur.execute("DELETE FROM user_budgets WHERE username = ? AND category = ? AND household = ?", (username, category, household))
-    
-    conn.commit()
-    conn.close()
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        
+        # Get household for the user with fallback
+        try:
+            household = get_user_household(username)
+            print(f"DELETE_BUDGET DEBUG: User '{username}' belongs to household '{household}'")
+        except Exception as e:
+            print(f"DELETE_BUDGET WARNING: Household lookup failed for '{username}': {e}, using 'default'")
+            household = 'default'
+        
+        # Check if table exists first (production safety)
+        try:
+            if USE_POSTGRES:
+                cur.execute("SELECT 1 FROM user_budgets LIMIT 1")
+            else:
+                cur.execute("SELECT 1 FROM user_budgets LIMIT 1")
+        except Exception as table_error:
+            print(f"DELETE_BUDGET WARNING: user_budgets table not accessible: {table_error}")
+            conn.close()
+            return  # Don't fail if table doesn't exist
+        
+        if USE_POSTGRES:
+            cur.execute("DELETE FROM user_budgets WHERE username = %s AND category = %s AND household = %s", (username, category, household))
+        else:
+            cur.execute("DELETE FROM user_budgets WHERE username = ? AND category = ? AND household = ?", (username, category, household))
+        
+        rows_affected = cur.rowcount
+        conn.commit()
+        conn.close()
+        print(f"DELETE_BUDGET DEBUG: Successfully deleted {rows_affected} budget record(s) for {username}/{category}")
+        
+    except Exception as e:
+        print(f"DELETE_BUDGET ERROR: Failed to delete budget for {username}/{category}: {str(e)}")
+        print(f"DELETE_BUDGET ERROR TYPE: {type(e).__name__}")
+        import traceback
+        traceback.print_exc()
+        # Don't re-raise for delete operations - they're not critical
 
 
 def cleanup_misc_category():
@@ -1179,23 +1279,71 @@ def update_budget():
         flash("Please log in to manage your budget", "error")
         return redirect(url_for("login"))
     
-    # Update only current user's budget limits in database
-    for category in CATEGORIES:
-        budget_value = request.form.get(f"budget_{category}")
-        if budget_value:
-            try:
-                budget_amount = float(budget_value)
-                if budget_amount >= 0:  # Only allow non-negative budgets
-                    set_user_budget(current_user, category, budget_amount)
-            except (ValueError, TypeError):
-                flash(f"Invalid budget amount for {category}", "error")
-                return redirect(url_for("budget_settings"))
-        else:
-            # Remove budget limit if field is empty
-            delete_user_budget(current_user, category)
+    print(f"BUDGET UPDATE DEBUG: User '{current_user}' updating budget")
+    print(f"BUDGET UPDATE DEBUG: Request form keys: {list(request.form.keys())}")
+    print(f"BUDGET UPDATE DEBUG: Session data: {dict(session)}")
     
-    flash("Budget limits updated successfully!", "success")
-    return redirect(url_for("index"))
+    # Production compatibility: Check if we have a database connection first
+    try:
+        conn = get_conn()
+        conn.close()
+        print("BUDGET UPDATE DEBUG: Database connection successful")
+    except Exception as db_error:
+        print(f"BUDGET UPDATE ERROR: Database connection failed: {db_error}")
+        flash("Database connection error. Please try again.", "error")
+        return redirect(url_for("budget_settings"))
+    
+    success_count = 0
+    error_count = 0
+    
+    try:
+        # Update only current user's budget limits in database
+        for category in CATEGORIES:
+            budget_field = f"budget_{category}"
+            budget_value = request.form.get(budget_field)
+            print(f"BUDGET UPDATE DEBUG: Processing {budget_field} = '{budget_value}'")
+            
+            if budget_value and budget_value.strip():
+                try:
+                    budget_amount = float(budget_value.strip())
+                    if budget_amount >= 0:  # Only allow non-negative budgets
+                        print(f"BUDGET UPDATE DEBUG: Setting {category} = {budget_amount} for user {current_user}")
+                        set_user_budget(current_user, category, budget_amount)
+                        success_count += 1
+                    else:
+                        print(f"BUDGET UPDATE WARNING: Negative budget amount for {category}: {budget_amount}")
+                        error_count += 1
+                except (ValueError, TypeError) as e:
+                    print(f"BUDGET UPDATE ERROR: Invalid budget amount for {category}: {e}")
+                    flash(f"Invalid budget amount for {category}: '{budget_value}'", "error")
+                    error_count += 1
+            else:
+                # Remove budget limit if field is empty
+                try:
+                    print(f"BUDGET UPDATE DEBUG: Removing budget for {category} for user {current_user}")
+                    delete_user_budget(current_user, category)
+                except Exception as delete_error:
+                    print(f"BUDGET UPDATE WARNING: Could not delete budget for {category}: {delete_error}")
+                    # Don't count delete errors as failures since the budget might not exist
+        
+        print(f"BUDGET UPDATE DEBUG: Processed {success_count} successful updates, {error_count} errors")
+        
+        if success_count > 0:
+            flash(f"Budget limits updated successfully! ({success_count} categories)", "success")
+        elif error_count == 0:
+            flash("Budget settings saved (no changes detected)", "info")
+        else:
+            flash(f"Some budget updates failed ({error_count} errors)", "warning")
+            
+        return redirect(url_for("index"))
+    
+    except Exception as e:
+        print(f"BUDGET UPDATE CRITICAL ERROR: {str(e)}")
+        print(f"BUDGET UPDATE ERROR TYPE: {type(e).__name__}")
+        import traceback
+        traceback.print_exc()
+        flash(f"Unexpected error updating budget: {str(e)}", "error")
+        return redirect(url_for("budget_settings"))
 
 
 @app.route("/status")
