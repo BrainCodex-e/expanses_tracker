@@ -35,20 +35,41 @@ This project demonstrates full-stack development skills including:
 - **CSRF Protection**: Form security against cross-site attacks
 - **Password Hashing**: Werkzeug security for credential protection
 
+### Multi-Household Data Isolation
+
+Perfect for families who want separate expense tracking! The system supports multiple households with complete data isolation:
+
+**Household Structure:**
+- **Primary Household**: `erez` and `lia` share expenses and budgets
+- **Parents Household**: `mom` and `dad` have their own isolated dashboard
+- **Data Separation**: Each household only sees their own expenses, charts, and budgets
+
+**User Authentication:**
+```bash
+# Set up multiple households in environment variables
+export USERS="erez:secure_pass1,lia:secure_pass2,mom:parent_pass1,dad:parent_pass2"
+```
+
 ### Access from Phone
 
 The server binds to all interfaces, so you can access it from your phone on the same Wi-Fi:
 
 1. Find your computer's IP: `hostname -I`
 2. Open Safari on your phone: `http://YOUR_IP:8000`
+3. Each family member logs in with their own credentials
+4. Each household sees only their own financial data
 
 ## Features
 
+- **Multi-Household Support** — Complete data isolation between family groups
 - **Add/delete expenses** with person, category, amount
-- **Charts** — spending by person and by category  
+- **Expense Splitting** — Split expenses 50/50 between household members
+- **Charts** — Individual and combined spending analytics per household
+- **Budget Dashboard** — Real-time budget tracking with visual indicators
+- **Mobile Gestures** — Touch-friendly swipe-to-delete and quick-add buttons
 - **CSV export** of all data
 - **PWA support** — Add to Home Screen on iOS
-- **Simple auth** — username/password (configurable)
+- **Secure Authentication** — Multi-user household access with data isolation
 
 ## Development
 
@@ -57,11 +78,30 @@ The server binds to all interfaces, so you can access it from your phone on the 
 If you prefer to set your own credentials without the script:
 
 ```bash
+# Single household
 export USERS="your-username:your-secure-password,partner:another-secure-password"
+
+# Multi-household (parents + children)  
+export USERS="erez:pass1,lia:pass2,mom:pass3,dad:pass4"
+
 export SECRET_KEY="$(openssl rand -hex 32)"  # Generate secure key
 export PORT=8000
 python3 app.py
 ```
+
+### Recent Updates (November 2025)
+
+🆕 **Multi-Household Isolation System**
+- Complete data separation between family groups
+- Household-aware charts, budgets, and expense tracking
+- Database schema evolution with automatic migration
+- Mobile-optimized UI with touch gestures
+
+🆕 **Enhanced Mobile Experience**
+- Swipe-to-delete expense cards with haptic feedback
+- Quick-add buttons for common expense categories
+- Responsive design with CSS animations
+- Individual user charts within household context
 
 ### Database
 
