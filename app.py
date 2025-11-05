@@ -450,6 +450,7 @@ cleanup_misc_category()
 
 # Session cookie hardening (can be disabled for local non-HTTPS testing by setting SESSION_COOKIE_SECURE=0)
 secure_cookies = os.environ.get("SESSION_COOKIE_SECURE", "1") != "0"
+print(f"CSRF/Session Debug: secure_cookies={secure_cookies}, SECRET_KEY set={'Yes' if app.config['SECRET_KEY'] else 'No'}")
 app.config.update(
     SESSION_COOKIE_SECURE=secure_cookies,
     SESSION_COOKIE_HTTPONLY=True,
@@ -1146,6 +1147,46 @@ def cleanup_misc_route():
     except Exception as e:
         return f"""
         <h1>Misc Category Cleanup</h1>
+        <p>❌ Error: {str(e)}</p>
+        <p><a href="/">→ Main App</a></p>
+        """
+
+
+@app.route("/debug/csrf")
+def debug_csrf():
+    """Debug CSRF and session configuration"""
+    try:
+        from flask_wtf.csrf import generate_csrf
+        csrf_token = generate_csrf()
+        session_info = {
+            'has_session': 'user' in session,
+            'session_user': session.get('user', 'Not logged in'),
+            'csrf_token_length': len(csrf_token) if csrf_token else 0,
+            'secure_cookies': app.config.get('SESSION_COOKIE_SECURE'),
+            'secret_key_set': bool(app.config.get('SECRET_KEY')),
+        }
+        
+        return f"""
+        <h1>CSRF & Session Debug</h1>
+        <h3>Configuration:</h3>
+        <ul>
+            <li>Secure Cookies: {session_info['secure_cookies']}</li>
+            <li>Secret Key Set: {session_info['secret_key_set']}</li>
+            <li>CSRF Token Generated: {csrf_token[:20]}... (length: {session_info['csrf_token_length']})</li>
+        </ul>
+        <h3>Session:</h3>
+        <ul>
+            <li>Has Session: {session_info['has_session']}</li>
+            <li>Current User: {session_info['session_user']}</li>
+        </ul>
+        <h3>Fix for Local Development:</h3>
+        <p>If getting CSRF errors on localhost, set: <code>export SESSION_COOKIE_SECURE="0"</code></p>
+        <p>Or use: <code>./run-local.sh</code> (already configured)</p>
+        <p><a href="/">→ Main App</a></p>
+        """
+    except Exception as e:
+        return f"""
+        <h1>CSRF Debug Error</h1>
         <p>❌ Error: {str(e)}</p>
         <p><a href="/">→ Main App</a></p>
         """
