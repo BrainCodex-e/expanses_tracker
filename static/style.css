@@ -513,6 +513,18 @@ h1, h5 {
     color: #ffffff !important;
   }
   
+  /* Fix display-6 gradient text that becomes invisible in dark mode */
+  .display-6 {
+    color: #ffffff !important;
+    -webkit-text-fill-color: #ffffff !important;
+    background: none !important;
+  }
+  
+  /* Ensure text-muted is visible */
+  .text-muted {
+    color: rgba(255, 255, 255, 0.8) !important;
+  }
+  
   .card {
     background: rgba(45, 55, 72, 0.95);
     color: #ffffff !important;

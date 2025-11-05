@@ -296,8 +296,8 @@ def get_household_users(username):
     household_users = HOUSEHOLD_USERS.get(household, [username])
     
     # Handle case where authentication uses different case than household mapping
-    if household == 'erez_lia' and username in ['Erez', 'Lia']:
-        return ['Erez', 'Lia']  # Return authentication case for consistency
+    if household == 'erez_lia' and username in ['erez', 'lia']:
+        return ['erez', 'lia']  # Return authentication case for consistency
     elif household == 'parents' and username in ['mom', 'dad']:
         return ['mom', 'dad']
     
@@ -784,8 +784,8 @@ def load_users_from_env():
                 users[u.strip()] = generate_password_hash(p.strip())
     else:
         # development fallback (weak default). Encourage setting USERS in production.
-        users["Erez"] = generate_password_hash("password")
-        users["Lia"] = generate_password_hash("password")
+        users["erez"] = generate_password_hash("password")
+        users["lia"] = generate_password_hash("password")
         users["mom"] = generate_password_hash("password")
         users["dad"] = generate_password_hash("password")
         print("Warning: USERS env var not set; using default weak passwords. Set USERS='user:pass,user2:pass,mom:pass,dad:pass' in production.")
