@@ -12,6 +12,29 @@
     <link rel="apple-touch-icon" href="https://via.placeholder.com/192.png?text=App">
   </head>
   <body>
+    <script>
+      // Force dark mode styling to prevent black text on black background
+      document.body.classList.add('dark-mode');
+      
+      // Also force white text on all elements
+      function forceWhiteText() {
+        const style = document.createElement('style');
+        style.textContent = `
+          * {
+            color: #ffffff !important;
+          }
+          .text-muted {
+            color: rgba(255, 255, 255, 0.8) !important;
+          }
+        `;
+        document.head.appendChild(style);
+      }
+      
+      // Apply immediately and also after DOM loads
+      forceWhiteText();
+      document.addEventListener('DOMContentLoaded', forceWhiteText);
+    </script>
+    
     <div class="container my-4 fade-in">
       <div class="d-flex justify-content-between align-items-center mb-4">
         <div>

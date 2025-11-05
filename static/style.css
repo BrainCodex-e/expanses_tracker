@@ -490,18 +490,67 @@ h1, h5 {
   
   body {
     background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
-    color: #e2e8f0;
+    color: #ffffff !important;
+  }
+  
+  /* Ensure all text elements are white */
+  * {
+    color: #ffffff !important;
+  }
+  
+  /* Override specific elements that might have different colors */
+  h1, h2, h3, h4, h5, h6,
+  p, span, div, td, th,
+  .text-muted, .small,
+  .form-label, .form-text,
+  .badge, .alert,
+  .card-title, .card-text {
+    color: #ffffff !important;
   }
   
   .card {
     background: rgba(45, 55, 72, 0.95);
-    color: #e2e8f0;
+    color: #ffffff !important;
   }
   
   .form-control, .form-select {
     background: rgba(26, 32, 44, 0.8);
     border-color: #4a5568;
-    color: #e2e8f0;
+    color: #ffffff !important;
+  }
+  
+  .form-control::placeholder {
+    color: rgba(255, 255, 255, 0.6) !important;
+  }
+  
+  /* Expense cards in dark mode */
+  .expense-content {
+    background: rgba(45, 55, 72, 0.95);
+    color: #ffffff !important;
+  }
+  
+  /* Table styling */
+  .table {
+    color: #ffffff !important;
+  }
+  
+  .table th,
+  .table td {
+    color: #ffffff !important;
+    border-color: #4a5568;
+  }
+  
+  /* Stats cards */
+  .stats-card {
+    background: rgba(45, 55, 72, 0.95);
+    color: #ffffff !important;
+  }
+  
+  /* Alert styling */
+  .alert-info {
+    background: rgba(79, 172, 254, 0.2);
+    border-color: #4facfe;
+    color: #ffffff !important;
   }
 }
 
@@ -525,3 +574,30 @@ h1, h5 {
 .fw-500 { font-weight: 500; }
 .fw-600 { font-weight: 600; }
 .fw-700 { font-weight: 700; }
+
+/* Force white text fallback for dark backgrounds */
+.text-white-force {
+  color: #ffffff !important;
+}
+
+/* Global text color override for dark themes */
+body.dark-theme,
+body.dark-theme * {
+  color: #ffffff !important;
+}
+
+/* Additional dark mode class for manual activation */
+.dark-mode {
+  background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
+  color: #ffffff !important;
+}
+
+.dark-mode *,
+.dark-mode .card,
+.dark-mode .form-control,
+.dark-mode .form-select,
+.dark-mode .table,
+.dark-mode .badge,
+.dark-mode .alert {
+  color: #ffffff !important;
+}
