@@ -831,7 +831,7 @@ init_db()
 @app.route("/", methods=["GET"])
 @login_required
 def index():
-    # Optimized for speed - only show current user's data
+    # Show both individual user data AND household data
     current_user = session.get('user', 'erez')
     
     # Get current month only
@@ -842,26 +842,68 @@ def index():
     else:
         month_end = date(today.year, today.month + 1, 1)
 
-    # Load only current user's expenses for speed
-    df = load_expenses(user=current_user)
+    # Load ALL expenses for household data
+    df = load_expenses()
+    
     if df.empty:
         dfm = pd.DataFrame()
         user_total = 0.0
         user_records = []
+        total = 0.0
+        by_person_list = []
+        by_cat_list = []
+        people = DEFAULT_PEOPLE
     else:
-        # Filter for current user and current month only
+        # Filter for current month
         df["tx_date"] = pd.to_datetime(df["tx_date"]).dt.date
         mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & \
-               (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end)) & \
-               (df["payer"].str.lower() == current_user.lower())
+               (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end))
         
         dfm = df[mask].copy()
         
-        # Calculate user's total spending
-        user_total = float(dfm["amount"].sum()) if not dfm.empty else 0.0
+        # Get household data (for shared charts)
+        if not dfm.empty:
+            # Total spending across household
+            total = float(dfm["amount"].sum())
+            
+            # By person breakdown
+            by_person = dfm.groupby("payer")["amount"].sum().to_dict()
+            by_person_list = sorted(by_person.items(), key=lambda x: x[1], reverse=True)
+            
+            # By category breakdown
+            by_cat = dfm.groupby("category")["amount"].sum().to_dict()
+            by_cat_list = sorted(by_cat.items(), key=lambda x: x[1], reverse=True)
+            
+            # Get all people from the data
+            people = sorted(dfm["payer"].unique().tolist())
+        else:
+            total = 0.0
+            by_person_list = []
+            by_cat_list = []
+            people = DEFAULT_PEOPLE
+        
+        # Calculate current user's individual data
+        user_mask = dfm["payer"].str.lower() == current_user.lower()
+        user_dfm = dfm[user_mask].copy() if not dfm.empty else pd.DataFrame()
+        user_total = float(user_dfm["amount"].sum()) if not user_dfm.empty else 0.0
         
         # Prepare user's expense records
         user_records = []
+        if not user_dfm.empty:
+            for r in user_dfm.to_dict(orient="records"):
+                r2 = dict(r)
+                try:
+                    r2["tx_date"] = pd.to_datetime(r2["tx_date"]).date().isoformat()
+                except:
+                    r2["tx_date"] = str(r2.get("tx_date"))
+                try:
+                    r2["amount"] = float(r2.get("amount", 0.0))
+                except:
+                    r2["amount"] = 0.0
+                user_records.append(r2)
+        
+        # Prepare ALL household expense records for the list
+        records = []
         if not dfm.empty:
             for r in dfm.to_dict(orient="records"):
                 r2 = dict(r)
@@ -873,16 +915,21 @@ def index():
                     r2["amount"] = float(r2.get("amount", 0.0))
                 except:
                     r2["amount"] = 0.0
-                user_records.append(r2)
+                records.append(r2)
 
     import time
     return render_template(
         "index.html",
         current_user=current_user,
         categories=CATEGORIES,
+        people=people,
         month_start=month_start,
+        total=total,
         user_total=user_total,
+        by_person_list=by_person_list,
+        by_cat_list=by_cat_list,
         user_records=user_records,
+        records=records,
         timestamp=int(time.time()),
     )
 
