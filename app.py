@@ -66,8 +66,9 @@ for household, users in HOUSEHOLD_USERS.items():
 DEFAULT_PEOPLE = ["erez", "lia"]  # This will be dynamic based on user's household
 
 # Budget limits per person per category (in ₪)
+# Note: Keep case consistent with authentication usernames
 BUDGET_LIMITS = {
-    "erez": {
+    "Erez": {
         "Food: Groceries": 500,
         "Food: Meat": 300,
         "Food: Eating Out / Wolt": 400,
@@ -77,7 +78,7 @@ BUDGET_LIMITS = {
         "Household / Cleaning": 100,
         "Gifts / Events": 200,
     },
-    "lia": {
+    "Lia": {
         "Food: Groceries": 500,
         "Food: Meat": 300,
         "Food: Eating Out / Wolt": 400,
@@ -86,6 +87,26 @@ BUDGET_LIMITS = {
         "Sport": 420,
         "Household / Cleaning": 100,
         "Gifts / Events": 200,
+    },
+    "mom": {
+        "Food: Groceries": 600,
+        "Food: Meat": 200,
+        "Food: Eating Out / Wolt": 300,
+        "Transport": 50,
+        "Health / Beauty": 150,
+        "Sport": 100,
+        "Household / Cleaning": 200,
+        "Gifts / Events": 150,
+    },
+    "dad": {
+        "Food: Groceries": 400,
+        "Food: Meat": 300,
+        "Food: Eating Out / Wolt": 250,
+        "Transport": 100,
+        "Health / Beauty": 100,
+        "Sport": 200,
+        "Household / Cleaning": 100,
+        "Gifts / Events": 100,
     }
 }
 
@@ -203,16 +224,24 @@ def migrate_db():
 
 
 def get_user_household(username):
-    """Get the household for a given user"""
-    # Try exact match first, then case-insensitive
+    """Get the household for a given user with case-insensitive matching"""
+    # Try exact match first
     if username in USER_HOUSEHOLD:
         return USER_HOUSEHOLD[username]
     
-    # Case-insensitive fallback
+    # Case-insensitive fallback for common mapping issues
     username_lower = username.lower()
     for user, household in USER_HOUSEHOLD.items():
         if user.lower() == username_lower:
             return household
+    
+    # Special case handling for authentication vs household name mismatches
+    if username_lower == 'erez':
+        return 'erez_lia'
+    elif username_lower == 'lia':
+        return 'erez_lia'
+    elif username_lower in ['mom', 'dad']:
+        return 'parents'
     
     return "default"
 
@@ -220,7 +249,15 @@ def get_user_household(username):
 def get_household_users(username):
     """Get all users in the same household as the given user"""
     household = get_user_household(username)
-    return HOUSEHOLD_USERS.get(household, [username])
+    household_users = HOUSEHOLD_USERS.get(household, [username])
+    
+    # Handle case where authentication uses different case than household mapping
+    if household == 'erez_lia' and username in ['Erez', 'Lia']:
+        return ['Erez', 'Lia']  # Return authentication case for consistency
+    elif household == 'parents' and username in ['mom', 'dad']:
+        return ['mom', 'dad']
+    
+    return household_users
 
 
 def get_default_people(username=None):
