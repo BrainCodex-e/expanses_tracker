@@ -4,6 +4,7 @@ from datetime import datetime, date
 import io
 import base64
 import urllib.parse as urlparse
+import traceback
 
 from flask import (
     Flask,
@@ -202,6 +203,20 @@ def migrate_db():
             cur.execute("ALTER TABLE expenses ADD COLUMN IF NOT EXISTS split_with TEXT DEFAULT NULL")
             cur.execute("ALTER TABLE expenses ADD COLUMN IF NOT EXISTS household TEXT DEFAULT 'default'")
             cur.execute("ALTER TABLE user_budgets ADD COLUMN IF NOT EXISTS household TEXT DEFAULT 'default'")
+            
+            # Add unique constraint if it doesn't exist
+            try:
+                cur.execute(
+                    """
+                    ALTER TABLE user_budgets 
+                    ADD CONSTRAINT user_budgets_unique 
+                    UNIQUE (username, category, household)
+                    """
+                )
+                print("Added unique constraint to user_budgets table")
+            except Exception as constraint_error:
+                print(f"Unique constraint already exists or failed to add: {constraint_error}")
+                
         else:
             # Check if columns exist for SQLite
             cur.execute("PRAGMA table_info(expenses)")
@@ -520,15 +535,38 @@ def set_user_budget(username, category, budget_limit):
                 raise create_error
         
         if USE_POSTGRES:
-            cur.execute(
-                """
-                INSERT INTO user_budgets (username, category, budget_limit, updated_at, household) 
-                VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s)
-                ON CONFLICT (username, category, household) 
-                DO UPDATE SET budget_limit = EXCLUDED.budget_limit, updated_at = CURRENT_TIMESTAMP
-                """,
-                (username, category, float(budget_limit), household)
-            )
+            # Try with ON CONFLICT first, if it fails, fall back to manual upsert
+            try:
+                cur.execute(
+                    """
+                    INSERT INTO user_budgets (username, category, budget_limit, updated_at, household) 
+                    VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s)
+                    ON CONFLICT (username, category, household) 
+                    DO UPDATE SET budget_limit = EXCLUDED.budget_limit, updated_at = CURRENT_TIMESTAMP
+                    """,
+                    (username, category, float(budget_limit), household)
+                )
+            except Exception as conflict_error:
+                print(f"SET_BUDGET WARNING: ON CONFLICT failed ({conflict_error}), trying manual upsert")
+                # Manual upsert - check if record exists first
+                cur.execute(
+                    "SELECT id FROM user_budgets WHERE username = %s AND category = %s AND household = %s",
+                    (username, category, household)
+                )
+                existing = cur.fetchone()
+                
+                if existing:
+                    # Update existing record
+                    cur.execute(
+                        "UPDATE user_budgets SET budget_limit = %s, updated_at = CURRENT_TIMESTAMP WHERE username = %s AND category = %s AND household = %s",
+                        (float(budget_limit), username, category, household)
+                    )
+                else:
+                    # Insert new record
+                    cur.execute(
+                        "INSERT INTO user_budgets (username, category, budget_limit, updated_at, household) VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s)",
+                        (username, category, float(budget_limit), household)
+                    )
         else:
             cur.execute(
                 """
@@ -545,7 +583,6 @@ def set_user_budget(username, category, budget_limit):
     except Exception as e:
         print(f"SET_BUDGET ERROR: Failed to set budget for {username}/{category}: {str(e)}")
         print(f"SET_BUDGET ERROR TYPE: {type(e).__name__}")
-        import traceback
         traceback.print_exc()
         raise
 
@@ -590,7 +627,6 @@ def delete_user_budget(username, category):
     except Exception as e:
         print(f"DELETE_BUDGET ERROR: Failed to delete budget for {username}/{category}: {str(e)}")
         print(f"DELETE_BUDGET ERROR TYPE: {type(e).__name__}")
-        import traceback
         traceback.print_exc()
         # Don't re-raise for delete operations - they're not critical
 
@@ -1279,70 +1315,40 @@ def update_budget():
         flash("Please log in to manage your budget", "error")
         return redirect(url_for("login"))
     
-    print(f"BUDGET UPDATE DEBUG: User '{current_user}' updating budget")
-    print(f"BUDGET UPDATE DEBUG: Request form keys: {list(request.form.keys())}")
-    print(f"BUDGET UPDATE DEBUG: Session data: {dict(session)}")
-    
-    # Production compatibility: Check if we have a database connection first
     try:
-        conn = get_conn()
-        conn.close()
-        print("BUDGET UPDATE DEBUG: Database connection successful")
-    except Exception as db_error:
-        print(f"BUDGET UPDATE ERROR: Database connection failed: {db_error}")
-        flash("Database connection error. Please try again.", "error")
-        return redirect(url_for("budget_settings"))
-    
-    success_count = 0
-    error_count = 0
-    
-    try:
-        # Update only current user's budget limits in database
+        # Simple production-safe approach
+        success_count = 0
+        
+        # Process each category budget update
         for category in CATEGORIES:
-            budget_field = f"budget_{category}"
-            budget_value = request.form.get(budget_field)
-            print(f"BUDGET UPDATE DEBUG: Processing {budget_field} = '{budget_value}'")
-            
+            budget_value = request.form.get(f"budget_{category}")
             if budget_value and budget_value.strip():
                 try:
                     budget_amount = float(budget_value.strip())
                     if budget_amount >= 0:  # Only allow non-negative budgets
-                        print(f"BUDGET UPDATE DEBUG: Setting {category} = {budget_amount} for user {current_user}")
                         set_user_budget(current_user, category, budget_amount)
                         success_count += 1
-                    else:
-                        print(f"BUDGET UPDATE WARNING: Negative budget amount for {category}: {budget_amount}")
-                        error_count += 1
-                except (ValueError, TypeError) as e:
-                    print(f"BUDGET UPDATE ERROR: Invalid budget amount for {category}: {e}")
-                    flash(f"Invalid budget amount for {category}: '{budget_value}'", "error")
-                    error_count += 1
+                except (ValueError, TypeError):
+                    flash(f"Invalid budget amount for {category}", "error")
+                    continue
             else:
-                # Remove budget limit if field is empty
+                # Remove budget limit if field is empty (but don't fail if deletion fails)
                 try:
-                    print(f"BUDGET UPDATE DEBUG: Removing budget for {category} for user {current_user}")
                     delete_user_budget(current_user, category)
-                except Exception as delete_error:
-                    print(f"BUDGET UPDATE WARNING: Could not delete budget for {category}: {delete_error}")
-                    # Don't count delete errors as failures since the budget might not exist
-        
-        print(f"BUDGET UPDATE DEBUG: Processed {success_count} successful updates, {error_count} errors")
+                except:
+                    pass  # Ignore delete errors - budget might not exist
         
         if success_count > 0:
-            flash(f"Budget limits updated successfully! ({success_count} categories)", "success")
-        elif error_count == 0:
-            flash("Budget settings saved (no changes detected)", "info")
+            flash("Budget limits updated successfully!", "success")
         else:
-            flash(f"Some budget updates failed ({error_count} errors)", "warning")
+            flash("Budget settings saved", "info")
             
         return redirect(url_for("index"))
     
     except Exception as e:
-        print(f"BUDGET UPDATE CRITICAL ERROR: {str(e)}")
-        print(f"BUDGET UPDATE ERROR TYPE: {type(e).__name__}")
-        import traceback
-        traceback.print_exc()
-        flash(f"Unexpected error updating budget: {str(e)}", "error")
+        # Minimal error handling for production
+        print(f"Budget update error for user {current_user}: {str(e)}")
+        flash("Error updating budget settings. Please try again.", "error")
         return redirect(url_for("budget_settings"))
 
 
