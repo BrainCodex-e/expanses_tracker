@@ -51,7 +51,7 @@ CATEGORIES = [
     "School Expenses",
 ]
 # Keep these as backend constants for now, but they could be made configurable
-DEFAULT_PEOPLE = ["Erez", "Lia"]
+DEFAULT_PEOPLE = ["erez", "lia"]
 
 # Budget limits per person per category (in ₪)
 BUDGET_LIMITS = {
@@ -64,7 +64,6 @@ BUDGET_LIMITS = {
         "Sport": 420,
         "Household / Cleaning": 100,
         "Gifts / Events": 200,
-        "Misc": 150,
     },
     "lia": {
         "Food: Groceries": 500,
@@ -75,7 +74,6 @@ BUDGET_LIMITS = {
         "Sport": 420,
         "Household / Cleaning": 100,
         "Gifts / Events": 200,
-        "Misc": 150,
     }
 }
 
@@ -374,6 +372,29 @@ def delete_user_budget(username, category):
     conn.close()
 
 
+def cleanup_misc_category():
+    """Remove all Misc category entries from user_budgets"""
+    try:
+        conn = get_conn()
+        cur = conn.cursor()
+        
+        if USE_POSTGRES:
+            cur.execute("DELETE FROM user_budgets WHERE category = %s", ("Misc",))
+            rows_deleted = cur.rowcount
+        else:
+            cur.execute("DELETE FROM user_budgets WHERE category = ?", ("Misc",))
+            rows_deleted = cur.rowcount
+        
+        conn.commit()
+        conn.close()
+        print(f"Cleaned up {rows_deleted} Misc category entries from database")
+        return rows_deleted
+        
+    except Exception as e:
+        print(f"Error cleaning up Misc category: {e}")
+        return 0
+
+
 def migrate_budget_limits_to_db():
     """Migrate hardcoded BUDGET_LIMITS to database (run once)"""
     try:
@@ -424,6 +445,8 @@ init_db()
 migrate_db()
 # Migrate hardcoded budget data to database (one-time migration)
 migrate_budget_limits_to_db()
+# Clean up removed categories
+cleanup_misc_category()
 
 # Session cookie hardening (can be disabled for local non-HTTPS testing by setting SESSION_COOKIE_SECURE=0)
 secure_cookies = os.environ.get("SESSION_COOKIE_SECURE", "1") != "0"
@@ -1026,6 +1049,26 @@ def status():
     except Exception as e:
         return f"""
         <h1>App Status</h1>
+        <p>❌ Error: {str(e)}</p>
+        <p><a href="/">→ Main App</a></p>
+        """
+
+
+@app.route("/cleanup/misc")
+def cleanup_misc_route():
+    """Manual cleanup route for Misc category - no login required for admin use"""
+    try:
+        deleted_count = cleanup_misc_category()
+        return f"""
+        <h1>Misc Category Cleanup</h1>
+        <p>✅ Deleted {deleted_count} Misc category entries from database</p>
+        <p>The Misc category has been removed from all user budgets.</p>
+        <p><a href="/budget/dashboard">→ Check Budget Dashboard</a></p>
+        <p><a href="/">→ Main App</a></p>
+        """
+    except Exception as e:
+        return f"""
+        <h1>Misc Category Cleanup</h1>
         <p>❌ Error: {str(e)}</p>
         <p><a href="/">→ Main App</a></p>
         """
