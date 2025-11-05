@@ -764,12 +764,12 @@ def download_csv():
 @app.route("/plot/<kind>.png")
 @login_required
 def plot_png(kind):
-    # kind: 'by_cat' or 'by_person'
+    # kind: 'by_cat' or 'by_person' - shows combined data for all users
     df = load_expenses()
     if df.empty:
         return "No data", 400
     df["tx_date"] = pd.to_datetime(df["tx_date"]).dt.date
-    # default to last month
+    # default to current month
     today = date.today()
     month_start = date(today.year, today.month, 1)
     if month_start.month == 12:
@@ -779,28 +779,105 @@ def plot_png(kind):
 
     mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end))
     dfm = df[mask].copy()
-    buf = io.BytesIO()
-    plt.tight_layout()
 
     if kind == "by_cat":
         by_cat = dfm.groupby("category")["amount"].sum().sort_values(ascending=False)
-        fig, ax = plt.subplots(figsize=(6, 4))
+        fig, ax = plt.subplots(figsize=(8, 6))
         if not by_cat.empty:
             ax.pie(by_cat.values, labels=by_cat.index, autopct="%1.0f%%", startangle=90)
+            ax.set_title("Combined Spending by Category", fontsize=14, fontweight='bold')
             ax.axis("equal")
         else:
-            ax.text(0.5, 0.5, "No data", ha="center")
+            ax.text(0.5, 0.5, "No data", ha="center", va="center")
     else:
         by_person = dfm.groupby("payer")["amount"].sum()
-        fig, ax = plt.subplots(figsize=(6, 4))
+        fig, ax = plt.subplots(figsize=(8, 6))
         if not by_person.empty:
-            ax.bar(by_person.index, by_person.values)
-            ax.set_ylabel("₪")
+            bars = ax.bar(by_person.index, by_person.values, color=['#007bff', '#28a745', '#ffc107', '#dc3545'][:len(by_person)])
+            ax.set_ylabel("Amount (₪)")
+            ax.set_title("Combined Spending by Person", fontsize=14, fontweight='bold')
+            # Add value labels on bars
+            for bar in bars:
+                height = bar.get_height()
+                ax.text(bar.get_x() + bar.get_width()/2., height + 5,
+                       f'₪{height:.0f}', ha='center', va='bottom')
         else:
-            ax.text(0.5, 0.5, "No data", ha="center")
+            ax.text(0.5, 0.5, "No data", ha="center", va="center")
 
-    fig.savefig(buf, format="png")
+    plt.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=100, bbox_inches='tight')
     buf.seek(0)
+    plt.close(fig)
+    response = send_file(buf, mimetype="image/png")
+    # Prevent browser caching of chart images
+    response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
+    response.headers['Pragma'] = 'no-cache'
+    response.headers['Expires'] = '0'
+    return response
+
+
+@app.route("/plot/<person>/<kind>.png")
+@login_required
+def plot_user_png(person, kind):
+    # kind: 'by_cat' - shows individual user data
+    df = load_expenses()
+    if df.empty:
+        return "No data", 400
+    df["tx_date"] = pd.to_datetime(df["tx_date"]).dt.date
+    # default to current month
+    today = date.today()
+    month_start = date(today.year, today.month, 1)
+    if month_start.month == 12:
+        month_end = date(month_start.year + 1, 1, 1)
+    else:
+        month_end = date(month_start.year, month_start.month + 1, 1)
+
+    # Filter for current month and specific person (case-insensitive)
+    mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & \
+           (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end)) & \
+           (df["payer"].str.lower() == person.lower())
+    
+    dfm = df[mask].copy()
+
+    if kind == "by_cat":
+        # Handle split expenses properly
+        if not dfm.empty:
+            dfm_copy = dfm.copy()
+            # For expenses paid by this person that are split, only count half
+            split_mask = dfm_copy['split_with'].notna()
+            dfm_copy.loc[split_mask, 'amount'] = dfm_copy.loc[split_mask, 'amount'] / 2
+            
+            # Add expenses where this person was split with (they owe half)
+            other_split_mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & \
+                             (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end)) & \
+                             (df["split_with"].str.lower() == person.lower())
+            
+            other_split_df = df[other_split_mask].copy()
+            if not other_split_df.empty:
+                other_split_df['amount'] = other_split_df['amount'] / 2
+                dfm_copy = pd.concat([dfm_copy, other_split_df], ignore_index=True)
+            
+            by_cat = dfm_copy.groupby("category")["amount"].sum().sort_values(ascending=False)
+        else:
+            by_cat = pd.Series([], dtype=float)
+        
+        fig, ax = plt.subplots(figsize=(8, 6))
+        if not by_cat.empty:
+            ax.pie(by_cat.values, labels=by_cat.index, autopct="%1.0f%%", startangle=90)
+            ax.set_title(f"{person.title()}'s Spending by Category", fontsize=14, fontweight='bold')
+            ax.axis("equal")
+        else:
+            ax.text(0.5, 0.5, f"No data for {person.title()}", ha="center", va="center", fontsize=14)
+            ax.set_xlim(0, 1)
+            ax.set_ylim(0, 1)
+            ax.axis('off')
+
+    plt.tight_layout()
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=100, bbox_inches='tight')
+    buf.seek(0)
+    plt.close(fig)
     response = send_file(buf, mimetype="image/png")
     # Prevent browser caching of chart images
     response.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
