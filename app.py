@@ -476,12 +476,9 @@ def get_user_budgets(username):
             print(f"DEBUG: No database records for {username}, using hardcoded fallback")
             return fallback_budgets
         
-        # Merge database with fallback (database overrides hardcoded)
-        final_budgets = fallback_budgets.copy()
-        final_budgets.update(budgets)
-        
-        print(f"DEBUG: Final merged budget data for {username}: {final_budgets}")
-        return final_budgets
+        # Use ONLY database budgets - don't merge with fallbacks to avoid adding up values
+        print(f"DEBUG: Using database budgets for {username}: {budgets}")
+        return budgets
         
     except Exception as e:
         print(f"ERROR getting user budgets for {username}: {e}")
@@ -554,18 +551,18 @@ def set_user_budget(username, category, budget_limit):
         if USE_POSTGRES:
             # Use manual upsert approach to handle various constraint scenarios
             try:
-                # First check if record exists
+                # First check if record exists (check by username/category only due to existing constraint)
                 cur.execute(
-                    "SELECT id FROM user_budgets WHERE username = %s AND category = %s AND household = %s",
-                    (username, category, household)
+                    "SELECT id, household FROM user_budgets WHERE username = %s AND category = %s",
+                    (username, category)
                 )
                 existing = cur.fetchone()
                 
                 if existing:
-                    # Update existing record
+                    # Update existing record (update household too in case it's different)
                     cur.execute(
-                        "UPDATE user_budgets SET budget_limit = %s, updated_at = CURRENT_TIMESTAMP WHERE username = %s AND category = %s AND household = %s",
-                        (float(budget_limit), username, category, household)
+                        "UPDATE user_budgets SET budget_limit = %s, updated_at = CURRENT_TIMESTAMP, household = %s WHERE username = %s AND category = %s",
+                        (float(budget_limit), household, username, category)
                     )
                     print(f"SET_BUDGET DEBUG: Updated existing budget for {username}/{category}")
                 else:
@@ -586,20 +583,31 @@ def set_user_budget(username, category, budget_limit):
                 conn = get_conn()
                 cur = conn.cursor()
                 
-                # Delete any existing record and insert fresh
+                # Delete any existing record and insert fresh (handle both constraint types)
                 try:
+                    # Delete by username and category only (handles the existing constraint)
                     cur.execute(
                         "DELETE FROM user_budgets WHERE username = %s AND category = %s",
                         (username, category)
                     )
+                    # Now insert with household
                     cur.execute(
                         "INSERT INTO user_budgets (username, category, budget_limit, updated_at, household) VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s)",
                         (username, category, float(budget_limit), household)
                     )
                     print(f"SET_BUDGET DEBUG: Replaced budget record for {username}/{category}")
                 except Exception as replace_error:
-                    print(f"SET_BUDGET CRITICAL: All upsert methods failed: {replace_error}")
-                    raise replace_error
+                    print(f"SET_BUDGET ERROR: Delete/insert failed: {replace_error}")
+                    # Final fallback - try to update any existing record
+                    try:
+                        cur.execute(
+                            "UPDATE user_budgets SET budget_limit = %s, updated_at = CURRENT_TIMESTAMP, household = %s WHERE username = %s AND category = %s",
+                            (float(budget_limit), household, username, category)
+                        )
+                        print(f"SET_BUDGET DEBUG: Force-updated budget record for {username}/{category}")
+                    except Exception as final_error:
+                        print(f"SET_BUDGET CRITICAL: All upsert methods failed: {final_error}")
+                        raise final_error
         else:
             cur.execute(
                 """
@@ -705,6 +713,7 @@ def migrate_budget_limits_to_db():
             count = cur.fetchone()[0]
             conn.close()
             
+            # Only migrate if user has NO budget records at all
             if count == 0:
                 print(f"Migrating budget limits for {username}...")
                 for category, limit in categories.items():
@@ -714,18 +723,12 @@ def migrate_budget_limits_to_db():
                     except Exception as e:
                         print(f"✗ Error migrating budget for {username}/{category}: {e}")
             else:
-                print(f"User {username} already has {count} budget records in database")
+                print(f"User {username} already has {count} budget records in database - skipping migration")
             
     except Exception as e:
         print(f"Migration failed: {e}")
-        # Try to migrate anyway
-        print("Attempting emergency migration...")
-        for username, categories in BUDGET_LIMITS.items():
-            for category, limit in categories.items():
-                try:
-                    set_user_budget(username, category, limit)
-                except Exception as e:
-                    print(f"Error in emergency migration for {username}/{category}: {e}")
+        # Don't do emergency migration as it might overwrite user's custom budgets
+        print("Skipping emergency migration to preserve user data")
 
 
 app = Flask(__name__)
