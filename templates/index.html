@@ -13,26 +13,15 @@
   </head>
   <body>
     <script>
-      // Force dark mode styling to prevent black text on black background
-      document.body.classList.add('dark-mode');
-      
-      // Also force white text on all elements
-      function forceWhiteText() {
-        const style = document.createElement('style');
-        style.textContent = `
-          * {
-            color: #ffffff !important;
-          }
-          .text-muted {
-            color: rgba(255, 255, 255, 0.8) !important;
-          }
-        `;
-        document.head.appendChild(style);
+      // Initialize theme based on localStorage or default to dark mode
+      const savedTheme = localStorage.getItem('theme') || 'dark';
+      if (savedTheme === 'light') {
+        document.body.classList.add('light-mode');
+        document.body.classList.remove('dark-mode');
+      } else {
+        document.body.classList.add('dark-mode');
+        document.body.classList.remove('light-mode');
       }
-      
-      // Apply immediately and also after DOM loads
-      forceWhiteText();
-      document.addEventListener('DOMContentLoaded', forceWhiteText);
     </script>
     
     <div class="container my-4 fade-in">
@@ -41,7 +30,11 @@
           <h1 class="mb-1">💸 {{ current_user.title() }}'s Expenses</h1>
           <p class="text-muted mb-0 fw-500">Personal financial tracking</p>
         </div>
-        <div class="text-end">
+        <div class="text-end d-flex align-items-center gap-3">
+          <!-- Dark/Light Mode Toggle -->
+          <button class="btn btn-outline-secondary btn-sm theme-toggle" id="theme-toggle">
+            <span class="theme-icon">🌙</span>
+          </button>
           <div class="badge bg-primary fs-6 px-3 py-2">{{ month_start.strftime('%B %Y') }}</div>
         </div>
       </div>
@@ -69,66 +62,17 @@
 
       <div class="row">
         <div class="col-md-4">
-          <!-- Quick Add Buttons -->
+          <!-- Add Expense Form -->
           <div class="card mb-3">
-            <div class="card-header bg-primary text-white">
-              <h5 class="mb-0">⚡ Quick Add Expenses</h5>
+            <div class="card-header bg-success text-white">
+              <h5 class="mb-0">➕ Add Expense</h5>
             </div>
             <div class="card-body">
-              <div class="row g-3 mb-3">
-                <div class="col-6 col-md-4">
-                  <button class="btn btn-outline-primary btn-sm w-100 quick-add-btn" 
-                          data-category="Food: Eating Out / Wolt" data-amount="25" data-notes="Coffee">
-                    ☕ Coffee<br><small>₪25</small>
-                  </button>
-                </div>
-                <div class="col-6 col-md-4">
-                  <button class="btn btn-outline-primary btn-sm w-100 quick-add-btn"
-                          data-category="Food: Eating Out / Wolt" data-amount="60" data-notes="Lunch">
-                    🍽️ Lunch<br><small>₪60</small>
-                  </button>
-                </div>
-                <div class="col-6 col-md-4">
-                  <button class="btn btn-outline-primary btn-sm w-100 quick-add-btn"
-                          data-category="Transport" data-amount="20" data-notes="Gas">
-                    ⛽ Gas<br><small>₪20</small>
-                  </button>
-                </div>
-                <div class="col-6 col-md-4">
-                  <button class="btn btn-outline-primary btn-sm w-100 quick-add-btn"
-                          data-category="Food: Groceries" data-amount="100" data-notes="Groceries">
-                    🛒 Groceries<br><small>₪100</small>
-                  </button>
-                </div>
-                <div class="col-6 col-md-4">
-                  <button class="btn btn-outline-primary btn-sm w-100 quick-add-btn"
-                          data-category="Transport" data-amount="15" data-notes="Parking">
-                    🅿️ Parking<br><small>₪15</small>
-                  </button>
-                </div>
-                <div class="col-6 col-md-4">
-                  <button class="btn btn-outline-primary btn-sm w-100 quick-add-btn"
-                          data-category="Food: Eating Out / Wolt" data-amount="35" data-notes="Snack">
-                    🍎 Snack<br><small>₪35</small>
-                  </button>
-                </div>
-              </div>
-              <div class="text-center">
-                <button class="btn btn-outline-secondary btn-sm" id="show-full-form">
-                  📝 Custom Amount
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div class="card mb-3" id="full-form-card" style="display: none;">
-            <div class="card-body">
-              <h5 class="card-title">➕ Add Custom Expense</h5>
               <form action="/add" method="post">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <div class="mb-2">
                   <label class="form-label">Date</label>
-                  <input type="date" name="tx_date" class="form-control" value="{{ month_start }}">
+                  <input type="date" name="tx_date" class="form-control" value="{{ today }}" id="expense-date">
                 </div>
                 <div class="mb-2">
                   <label class="form-label">Category</label>
@@ -141,7 +85,7 @@
                 <input type="hidden" name="payer" value="{{ current_user }}">
                 <div class="mb-2">
                   <label class="form-label">Amount (₪)</label>
-                  <input type="number" step="0.01" name="amount" class="form-control">
+                  <input type="number" step="0.01" name="amount" class="form-control" placeholder="Enter amount" required>
                 </div>
                 <!-- Split functionality disabled for performance -->
                 <input type="hidden" name="split_with" value="">
@@ -150,13 +94,59 @@
                 </div>
                 <div class="mb-2">
                   <label class="form-label">Notes</label>
-                  <input type="text" name="notes" class="form-control">
+                  <input type="text" name="notes" class="form-control" placeholder="Optional notes">
                 </div>
-                <div class="d-grid gap-2 d-md-flex">
-                  <button class="btn btn-primary">Add Expense</button>
-                  <button type="button" class="btn btn-outline-secondary" id="hide-full-form">Cancel</button>
+                <div class="d-grid">
+                  <button class="btn btn-success btn-lg">💰 Add Expense</button>
                 </div>
               </form>
+            </div>
+          </div>
+
+          <!-- Quick Add Buttons -->
+          <div class="card mb-3">
+            <div class="card-header bg-primary text-white">
+              <h5 class="mb-0">⚡ Quick Add</h5>
+            </div>
+            <div class="card-body">
+              <div class="row g-3 mb-3">
+                <div class="col-6 col-md-4">
+                  <button class="btn btn-outline-primary btn-sm w-100 quick-add-btn quick-expense-btn" 
+                          data-category="Food: Eating Out / Wolt" data-amount="25" data-notes="Coffee">
+                    ☕ Coffee<br><small>₪25</small>
+                  </button>
+                </div>
+                <div class="col-6 col-md-4">
+                  <button class="btn btn-outline-primary btn-sm w-100 quick-add-btn quick-expense-btn"
+                          data-category="Food: Eating Out / Wolt" data-amount="60" data-notes="Lunch">
+                    🍽️ Lunch<br><small>₪60</small>
+                  </button>
+                </div>
+                <div class="col-6 col-md-4">
+                  <button class="btn btn-outline-primary btn-sm w-100 quick-add-btn quick-expense-btn"
+                          data-category="Transport" data-amount="20" data-notes="Gas">
+                    ⛽ Gas<br><small>₪20</small>
+                  </button>
+                </div>
+                <div class="col-6 col-md-4">
+                  <button class="btn btn-outline-primary btn-sm w-100 quick-add-btn quick-expense-btn"
+                          data-category="Food: Groceries" data-amount="100" data-notes="Groceries">
+                    🛒 Groceries<br><small>₪100</small>
+                  </button>
+                </div>
+                <div class="col-6 col-md-4">
+                  <button class="btn btn-outline-primary btn-sm w-100 quick-add-btn quick-expense-btn"
+                          data-category="Transport" data-amount="15" data-notes="Parking">
+                    🅿️ Parking<br><small>₪15</small>
+                  </button>
+                </div>
+                <div class="col-6 col-md-4">
+                  <button class="btn btn-outline-primary btn-sm w-100 quick-add-btn quick-expense-btn"
+                          data-category="Food: Eating Out / Wolt" data-amount="35" data-notes="Snack">
+                    🍎 Snack<br><small>₪35</small>
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -197,7 +187,7 @@
             <div class="col-md-6 mb-3">
               <div class="stats-card person">
                 <div class="d-flex align-items-center justify-content-center mb-2">
-                  <i class="me-2" style="font-size: 1.5rem;">�</i>
+                  <i class="me-2" style="font-size: 1.5rem;">👤</i>
                   <h6 class="mb-0 text-uppercase">{{ current_user.title() }}'s Spending</h6>
                 </div>
                 <div class="display-6">₪{{ user_total|round }}</div>
@@ -285,11 +275,11 @@
               
               <!-- Mobile Card View (Hidden on larger screens) -->
               <div class="d-md-none">
-                <div class="text-muted small mb-2 text-center">
-                  👆 Tap to edit • 👈 Swipe left to delete
+                <div class="text-muted small mb-3 text-center">
+                  � <strong>Tap "✏️ Edit" to modify</strong> • 👈 Swipe left to delete
                 </div>
                 {% for r in user_records %}
-                  <div class="expense-card mb-2 clickable" data-expense-id="{{ r.id }}">
+                  <div class="expense-card mb-2" data-expense-id="{{ r.id }}">
                     <div class="expense-content">
                       <div class="d-flex justify-content-between align-items-start">
                         <div class="flex-grow-1">
@@ -302,11 +292,12 @@
                             <span class="badge bg-info mt-1">50/50 with {{ r.split_with }}</span>
                           {% endif %}
                         </div>
-                        <div class="fw-bold text-end">
-                          ₪{{ r.amount }}
-                          <div class="edit-hint">
-                            <small class="text-muted">✏️</small>
-                          </div>
+                        <div class="text-end">
+                          <div class="fw-bold">₪{{ r.amount }}</div>
+                          <button class="btn btn-outline-primary btn-sm mt-2 edit-btn" 
+                                  onclick="window.location.href='/edit/{{ r.id }}'">
+                            ✏️ Edit
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -314,7 +305,7 @@
                       <form method="post" action="/delete" class="delete-form">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="row_id" value="{{ r.id }}">
-                        <button type="submit" class="btn btn-danger btn-sm">
+                        <button type="submit" class="btn btn-danger btn-sm delete-btn">
                           🗑️ Delete
                         </button>
                       </form>
@@ -356,11 +347,11 @@
                         <td>{{ r.notes }}</td>
                         <td>
                           <div class="btn-group" role="group">
-                            <a href="/edit/{{ r.id }}" class="btn btn-sm btn-outline-primary">✏️ Edit</a>
+                            <a href="/edit/{{ r.id }}" class="btn btn-sm btn-primary">✏️ Edit</a>
                             <form method="post" action="/delete" onsubmit="return confirm('Delete this expense?');" class="d-inline">
                               <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                               <input type="hidden" name="row_id" value="{{ r.id }}">
-                              <button type="submit" class="btn btn-sm btn-outline-danger">🗑️ Delete</button>
+                              <button type="submit" class="btn btn-sm btn-danger">🗑️ Delete</button>
                             </form>
                           </div>
                         </td>
@@ -387,10 +378,43 @@
 
     // Quick Add Functionality
     document.addEventListener('DOMContentLoaded', function() {
+      // Theme Toggle Functionality
+      const themeToggle = document.getElementById('theme-toggle');
+      const themeIcon = themeToggle.querySelector('.theme-icon');
+      
+      // Get saved theme from localStorage or default to dark
+      let currentTheme = localStorage.getItem('theme') || 'dark';
+      
+      // Apply initial theme
+      applyTheme(currentTheme);
+      
+      // Theme toggle click handler
+      themeToggle.addEventListener('click', function() {
+        currentTheme = currentTheme === 'dark' ? 'light' : 'dark';
+        applyTheme(currentTheme);
+        localStorage.setItem('theme', currentTheme);
+        
+        // Haptic feedback
+        if ('vibrate' in navigator) {
+          navigator.vibrate(30);
+        }
+      });
+      
+      function applyTheme(theme) {
+        if (theme === 'dark') {
+          document.body.classList.add('dark-mode');
+          document.body.classList.remove('light-mode');
+          themeIcon.textContent = '🌙';
+          themeToggle.setAttribute('aria-label', 'Switch to light mode');
+        } else {
+          document.body.classList.add('light-mode');
+          document.body.classList.remove('dark-mode');
+          themeIcon.textContent = '☀️';
+          themeToggle.setAttribute('aria-label', 'Switch to dark mode');
+        }
+      }
+
       const quickAddBtns = document.querySelectorAll('.quick-add-btn');
-      const showFormBtn = document.getElementById('show-full-form');
-      const hideFormBtn = document.getElementById('hide-full-form');
-      const fullFormCard = document.getElementById('full-form-card');
 
       // Quick Add Button Handlers
       quickAddBtns.forEach(btn => {
@@ -471,19 +495,14 @@
         });
       });
 
-      // Show/Hide Custom Form
-      showFormBtn?.addEventListener('click', function() {
-        fullFormCard.style.display = 'block';
-        this.style.display = 'none';
-        fullFormCard.scrollIntoView({ behavior: 'smooth' });
-      });
+      // Auto-set today's date on page load
+      const expenseDateInput = document.getElementById('expense-date');
+      if (expenseDateInput && !expenseDateInput.value) {
+        const today = new Date().toISOString().split('T')[0];
+        expenseDateInput.value = today;
+      }
 
-      hideFormBtn?.addEventListener('click', function() {
-        fullFormCard.style.display = 'none';
-        showFormBtn.style.display = 'inline-block';
-      });
-
-      // Touch Gesture Handling for Swipe-to-Delete
+      // Touch Gesture Handling for Swipe-to-Delete (No tap-to-edit)
       console.log('Setting up swipe gestures for', document.querySelectorAll('.expense-card').length, 'cards');
 
       document.querySelectorAll('.expense-card').forEach((card, index) => {
@@ -498,6 +517,11 @@
 
         // Touch start
         card.addEventListener('touchstart', function(e) {
+          // Don't interfere with button clicks
+          if (e.target.closest('.edit-btn') || e.target.closest('.delete-btn')) {
+            return;
+          }
+          
           console.log('Touch start on card', index);
           startX = e.touches[0].clientX;
           startY = e.touches[0].clientY;
@@ -513,12 +537,17 @@
 
         // Touch move
         card.addEventListener('touchmove', function(e) {
+          // Don't interfere with button interactions
+          if (e.target.closest('.edit-btn') || e.target.closest('.delete-btn')) {
+            return;
+          }
+          
           const deltaX = e.touches[0].clientX - startX;
           const deltaY = e.touches[0].clientY - startY;
           
-          // Determine if this is a horizontal swipe
-          if (!hasMovedHorizontally && (Math.abs(deltaX) > 10 || Math.abs(deltaY) > 10)) {
-            hasMovedHorizontally = Math.abs(deltaX) > Math.abs(deltaY);
+          // Determine if this is a horizontal swipe (require more movement before triggering)
+          if (!hasMovedHorizontally && (Math.abs(deltaX) > 20 || Math.abs(deltaY) > 20)) {
+            hasMovedHorizontally = Math.abs(deltaX) > Math.abs(deltaY) && Math.abs(deltaX) > 20;
             if (hasMovedHorizontally) {
               console.log('Horizontal swipe detected on card', index);
               isDragging = true;
@@ -543,14 +572,14 @@
               console.log('Swiping:', actualDelta);
               
               // Show delete button when swiped enough
-              if (actualDelta <= -50 && !card.classList.contains('delete-visible')) {
+              if (actualDelta <= -60 && !card.classList.contains('delete-visible')) {
                 card.classList.add('delete-visible');
                 console.log('Delete visible for card', index);
                 // Haptic feedback when delete becomes available
                 if ('vibrate' in navigator) {
                   navigator.vibrate(30);
                 }
-              } else if (actualDelta > -50) {
+              } else if (actualDelta > -60) {
                 card.classList.remove('delete-visible');
               }
             } else if (deltaX > 5) {
@@ -563,6 +592,11 @@
 
         // Touch end
         card.addEventListener('touchend', function(e) {
+          // Don't interfere with button interactions
+          if (e.target.closest('.edit-btn') || e.target.closest('.delete-btn')) {
+            return;
+          }
+          
           console.log('Touch end on card', index, 'isDragging:', isDragging);
           const expenseContent = card.querySelector('.expense-content');
           expenseContent.style.transition = 'transform 0.3s ease';
@@ -572,7 +606,7 @@
           
           if (wasSwipe) {
             // Reset if not swiped enough
-            if (deltaX > -50 || swipeTime < 50) {
+            if (deltaX > -60 || swipeTime < 50) {
               expenseContent.style.transform = 'translateX(0)';
               card.classList.remove('delete-visible');
               console.log('Resetting swipe for card', index);
@@ -582,13 +616,8 @@
               card.classList.add('delete-visible');
               console.log('Keeping delete visible for card', index);
             }
-          } else if (!card.classList.contains('delete-visible') && swipeTime < 300 && Math.abs(deltaX) < 10) {
-            // This was a tap, not a swipe - navigate to edit
-            console.log('Tap detected, editing expense:', card.dataset.expenseId);
-            setTimeout(() => {
-              window.location.href = `/edit/${card.dataset.expenseId}`;
-            }, 100);
           }
+          // Removed tap-to-edit functionality - users must click Edit button
           
           isDragging = false;
           hasMovedHorizontally = false;
@@ -622,14 +651,9 @@
             card.classList.remove('delete-visible');
           }
         }, { passive: true });
-
-
       });
 
-      // Global function for edit expense (if needed)
-      window.editExpense = function(expenseId) {
-        window.location.href = `/edit/${expenseId}`;
-      };
+      // Removed editExpense function as it's no longer needed
     });
   </script>
 </html>

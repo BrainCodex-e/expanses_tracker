@@ -931,6 +931,7 @@ def index():
         user_records=user_records,
         records=records,
         timestamp=int(time.time()),
+        today=date.today().isoformat(),
     )
 
 

@@ -1,3 +1,190 @@
+/* Theme Toggle Button */
+.theme-toggle {
+  background: rgba(45, 55, 72, 0.95) !important;
+  border: 2px solid #4a5568 !important;
+  color: #ffffff !important;
+  border-radius: 50px !important;
+  width: 45px !important;
+  height: 45px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 1.2rem !important;
+  transition: all 0.3s ease !important;
+}
+
+.theme-toggle:hover {
+  background: rgba(102, 126, 234, 0.8) !important;
+  border-color: #667eea !important;
+  transform: scale(1.05) !important;
+  color: white !important;
+}
+
+.theme-icon {
+  font-size: 1.1rem;
+}
+
+/* Light Mode Styles - Correct colors: dark text on light backgrounds */
+html body.light-mode {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%) !important;
+  color: #1a202c !important;
+}
+
+/* Force all text to be DARK in light mode */
+html body.light-mode,
+html body.light-mode *,
+html body.light-mode h1, html body.light-mode h2, html body.light-mode h3, html body.light-mode h4, html body.light-mode h5, html body.light-mode h6,
+html body.light-mode p, html body.light-mode span, html body.light-mode div, html body.light-mode td, html body.light-mode th,
+html body.light-mode .card-title, html body.light-mode .card-text,
+html body.light-mode .display-6, html body.light-mode .text-muted, html body.light-mode .small,
+html body.light-mode .form-label, html body.light-mode .form-text,
+html body.light-mode .expense-content *, html body.light-mode .stats-card *,
+html body.light-mode .table *, html body.light-mode .card * {
+  color: #1a202c !important;
+}
+
+html body.light-mode .card {
+  background: rgba(255, 255, 255, 0.95) !important;
+  color: #1a202c !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+html body.light-mode .expense-content {
+  background: rgba(255, 255, 255, 0.95) !important;
+  color: #1a202c !important;
+}
+
+html body.light-mode .expense-card,
+html body.light-mode .expense-card *,
+html body.light-mode .stats-card,
+html body.light-mode .stats-card * {
+  background: rgba(255, 255, 255, 0.95) !important;
+  color: #1a202c !important;
+}
+
+html body.light-mode .form-control,
+html body.light-mode .form-select {
+  background: rgba(255, 255, 255, 0.9) !important;
+  border-color: #cbd5e0 !important;
+  color: #1a202c !important;
+}
+
+html body.light-mode .form-control::placeholder {
+  color: #718096 !important;
+}
+
+html body.light-mode .form-control:focus,
+html body.light-mode .form-select:focus {
+  border-color: #667eea !important;
+  background: rgba(255, 255, 255, 1) !important;
+  color: #1a202c !important;
+}
+
+html body.light-mode .form-label {
+  color: #2d3748 !important;
+}
+
+html body.light-mode .text-muted {
+  color: #718096 !important;
+}
+
+/* Light mode button styling */
+html body.light-mode .btn-primary,
+html body.light-mode .btn-outline-primary,
+html body.light-mode .quick-add-btn {
+  background: #667eea !important;
+  border-color: #667eea !important;
+  color: white !important;
+}
+
+html body.light-mode .btn-outline-primary:hover,
+html body.light-mode .quick-add-btn:hover {
+  background: #5a6fd8 !important;
+  border-color: #5a6fd8 !important;
+  color: white !important;
+}
+
+html body.light-mode .stats-card {
+  background: rgba(255, 255, 255, 0.95) !important;
+  color: #1a202c !important;
+  border: 1px solid #e2e8f0 !important;
+}
+
+/* Light mode card sections and form areas */
+html body.light-mode .card-header {
+  background: rgba(102, 126, 234, 0.1) !important;
+  color: #1a202c !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+}
+
+html body.light-mode .card-body {
+  background: rgba(255, 255, 255, 0.95) !important;
+  color: #1a202c !important;
+}
+
+/* Ensure Quick Add section has proper styling in light mode */
+html body.light-mode .card .card-body {
+  background: rgba(255, 255, 255, 0.95) !important;
+}
+
+html body.light-mode .table {
+  background: rgba(255, 255, 255, 0.95) !important;
+  color: #1a202c !important;
+}
+
+html body.light-mode .table th,
+html body.light-mode .table td {
+  color: #1a202c !important;
+  border-color: #e2e8f0 !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+}
+
+html body.light-mode .theme-toggle {
+  background: rgba(255, 255, 255, 0.95) !important;
+  border-color: #cbd5e0 !important;
+  color: #1a202c !important;
+}
+
+html body.light-mode .theme-toggle:hover {
+  background: rgba(102, 126, 234, 0.8) !important;
+  border-color: #667eea !important;
+  color: white !important;
+}
+
+html body.light-mode .alert-info {
+  background: rgba(102, 126, 234, 0.1) !important;
+  border-color: #667eea !important;
+  color: #1a202c !important;
+}
+
+html body.light-mode .delete-action .btn {
+  background: rgba(255, 255, 255, 0.95) !important;
+  color: #dc3545 !important;
+}
+
+/* Ensure buttons keep their intended colors */
+body.light-mode .btn-primary,
+body.light-mode .btn-success,
+body.light-mode .btn-danger,
+body.light-mode .btn-warning,
+body.light-mode .btn-info {
+  color: white !important;
+}
+
+/* Badge text should remain white on colored backgrounds */
+body.light-mode .badge {
+  color: white !important;
+}
+
+/* Link colors in light mode */
+body.light-mode a {
+  color: #667eea !important;
+}
+
+body.light-mode a:hover {
+  color: #5a6fd8 !important;
+}
+
 /* Modern Design System */
 :root {
   --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -108,9 +295,45 @@ h1, h5 {
   transform: translateY(-1px);
 }
 
-/* Quick Add Buttons */
+/* Custom Amount Button */
+.custom-amount-btn {
+  background: var(--primary-gradient);
+  border: none;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  position: relative;
+  overflow: hidden;
+}
+
+.custom-amount-btn:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.5);
+}
+
+.custom-amount-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+  transition: left 0.6s;
+}
+
+.custom-amount-btn:hover::before {
+  left: 100%;
+}
+
+/* Quick Expense Buttons - Smaller */
+.quick-expense-btn {
+  min-height: 60px;
+  font-size: 0.8rem;
+  font-weight: 500;
+}
 .quick-add-btn {
-  min-height: 70px;
   border-radius: var(--border-radius);
   transition: var(--transition);
   position: relative;
@@ -153,17 +376,12 @@ h1, h5 {
   touch-action: manipulation; /* Better touch handling for gestures */
   user-select: none;
   -webkit-user-select: none;
-  cursor: pointer;
   transition: all 0.2s ease;
 }
 
 .expense-card:hover {
   border-color: #007bff;
   box-shadow: 0 2px 8px rgba(0,123,255,0.15);
-}
-
-.expense-card:active {
-  transform: scale(0.98);
 }
 
 .expense-content {
@@ -192,13 +410,14 @@ h1, h5 {
 
 .delete-action .btn {
   border: none;
-  background: rgba(255,255,255,0.2);
-  color: white;
+  background: rgba(255,255,255,0.95);
+  color: #dc3545;
   font-size: 12px;
   padding: 6px 12px;
   border-radius: 4px;
   font-weight: bold;
   backdrop-filter: blur(4px);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
 .expense-card.delete-visible .expense-content {
@@ -210,16 +429,52 @@ h1, h5 {
   pointer-events: auto; /* Make delete button clickable when visible */
 }
 
-/* Edit hint styling */
-.edit-hint {
-  opacity: 0.6;
-  font-size: 0.8em;
-  margin-top: 2px;
+/* Edit Button Styling */
+.edit-btn {
+  background: var(--primary-gradient) !important;
+  border: none !important;
+  color: white !important;
+  font-weight: 600 !important;
+  font-size: 0.8rem !important;
+  padding: 6px 12px !important;
+  border-radius: 6px !important;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3) !important;
+  transition: all 0.2s ease !important;
 }
 
-.expense-card:hover .edit-hint,
-.expense-card:focus .edit-hint {
-  opacity: 1;
+.edit-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4) !important;
+}
+
+/* Desktop Delete Button Improvement */
+.btn-danger {
+  background: linear-gradient(135deg, #ff4757 0%, #ff3838 100%) !important;
+  border: none !important;
+  color: white !important;
+  font-weight: 600 !important;
+  box-shadow: 0 2px 8px rgba(255, 71, 87, 0.3) !important;
+}
+
+.btn-danger:hover {
+  background: linear-gradient(135deg, #ff3838 0%, #ff2e2e 100%) !important;
+  box-shadow: 0 4px 12px rgba(255, 71, 87, 0.4) !important;
+  transform: translateY(-1px);
+}
+
+/* Desktop Edit Button Improvement */
+.btn-primary {
+  background: var(--primary-gradient) !important;
+  border: none !important;
+  color: white !important;
+  font-weight: 600 !important;
+  box-shadow: 0 2px 8px rgba(102, 126, 234, 0.3) !important;
+}
+
+.btn-primary:hover {
+  background: linear-gradient(135deg, #5a67d8 0%, #6b46c1 100%) !important;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4) !important;
+  transform: translateY(-1px);
 }
 
 /* Smooth transitions */
@@ -324,10 +579,17 @@ h1, h5 {
   }
   
   /* Larger touch targets for better accessibility */
-  .quick-add-btn {
-    padding: 16px 12px;
-    font-size: 0.9rem;
-    min-height: 75px;
+  .quick-add-btn.quick-expense-btn {
+    padding: 12px 8px;
+    font-size: 0.8rem;
+    min-height: 60px;
+    font-weight: 600;
+  }
+  
+  .custom-amount-btn {
+    padding: 18px 16px;
+    font-size: 1.1rem;
+    min-height: 70px;
     font-weight: 700;
   }
   
@@ -487,34 +749,34 @@ h1, h5 {
   }
 }
 
-/* Dark mode support for better battery life on OLED screens */
+/* Dark mode support for better battery life on OLED screens - only when not using manual theme classes */
 @media (prefers-color-scheme: dark) {
   :root {
     --card-shadow: 0 4px 6px rgba(255, 255, 255, 0.05), 0 1px 3px rgba(255, 255, 255, 0.1);
   }
   
-  body {
+  body:not(.light-mode):not(.dark-mode) {
     background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%);
     color: #ffffff !important;
   }
   
-  /* Ensure all text elements are white */
-  * {
+  /* Ensure all text elements are white - but only when not using manual themes */
+  body:not(.light-mode):not(.dark-mode) * {
     color: #ffffff !important;
   }
   
   /* Override specific elements that might have different colors */
-  h1, h2, h3, h4, h5, h6,
-  p, span, div, td, th,
-  .text-muted, .small,
-  .form-label, .form-text,
-  .badge, .alert,
-  .card-title, .card-text {
+  body:not(.light-mode):not(.dark-mode) h1, body:not(.light-mode):not(.dark-mode) h2, body:not(.light-mode):not(.dark-mode) h3, body:not(.light-mode):not(.dark-mode) h4, body:not(.light-mode):not(.dark-mode) h5, body:not(.light-mode):not(.dark-mode) h6,
+  body:not(.light-mode):not(.dark-mode) p, body:not(.light-mode):not(.dark-mode) span, body:not(.light-mode):not(.dark-mode) div, body:not(.light-mode):not(.dark-mode) td, body:not(.light-mode):not(.dark-mode) th,
+  body:not(.light-mode):not(.dark-mode) .text-muted, body:not(.light-mode):not(.dark-mode) .small,
+  body:not(.light-mode):not(.dark-mode) .form-label, body:not(.light-mode):not(.dark-mode) .form-text,
+  body:not(.light-mode):not(.dark-mode) .badge, body:not(.light-mode):not(.dark-mode) .alert,
+  body:not(.light-mode):not(.dark-mode) .card-title, body:not(.light-mode):not(.dark-mode) .card-text {
     color: #ffffff !important;
   }
   
   /* Fix display-6 gradient text that becomes invisible in dark mode */
-  .display-6 {
+  body:not(.light-mode):not(.dark-mode) .display-6 {
     color: #ffffff !important;
     -webkit-text-fill-color: #ffffff !important;
     background: none !important;
@@ -633,28 +895,28 @@ body.dark-theme * {
   color: #ffffff !important;
 }
 
-/* Additional dark mode class for manual activation */
-.dark-mode {
+/* Dark mode with higher specificity - WHITE text on DARK backgrounds */
+html body.dark-mode {
   background: linear-gradient(135deg, #1a202c 0%, #2d3748 100%) !important;
   color: #ffffff !important;
 }
 
-.dark-mode *,
-.dark-mode .card,
-.dark-mode .card-body,
-.dark-mode .expense-card,
-.dark-mode .expense-content,
-.dark-mode .stats-card,
-.dark-mode .form-control,
-.dark-mode .form-select,
-.dark-mode .table,
-.dark-mode .table th,
-.dark-mode .table td,
-.dark-mode .badge,
-.dark-mode .alert,
-.dark-mode .dropdown-menu,
-.dark-mode .list-group,
-.dark-mode .list-group-item {
+html body.dark-mode *:not(.light-mode *),
+html body.dark-mode .card,
+html body.dark-mode .card-body,
+html body.dark-mode .expense-card,
+html body.dark-mode .expense-content,
+html body.dark-mode .stats-card,
+html body.dark-mode .form-control,
+html body.dark-mode .form-select,
+html body.dark-mode .table,
+html body.dark-mode .table th,
+html body.dark-mode .table td,
+html body.dark-mode .badge,
+html body.dark-mode .alert,
+html body.dark-mode .dropdown-menu,
+html body.dark-mode .list-group,
+html body.dark-mode .list-group-item {
   color: #ffffff !important;
   background: rgba(45, 55, 72, 0.95) !important;
 }
@@ -672,4 +934,169 @@ body.dark-theme * {
 .dark-mode .bg-white,
 .dark-mode .bg-light {
   background-color: rgba(45, 55, 72, 0.95) !important;
+}
+
+/* Final override - Ensure proper text colors for each mode */
+
+/* Light mode: DARK text on LIGHT backgrounds */
+html body.light-mode div,
+html body.light-mode span,
+html body.light-mode p,
+html body.light-mode h1,
+html body.light-mode h2,
+html body.light-mode h3,
+html body.light-mode h4,
+html body.light-mode h5,
+html body.light-mode h6,
+html body.light-mode td,
+html body.light-mode th,
+html body.light-mode li,
+html body.light-mode label,
+html body.light-mode input,
+html body.light-mode textarea,
+html body.light-mode select,
+html body.light-mode .form-control,
+html body.light-mode .form-select,
+html body.light-mode .card-title,
+html body.light-mode .card-text,
+html body.light-mode .display-6,
+html body.light-mode .text-muted,
+html body.light-mode .small,
+html body.light-mode .form-label,
+html body.light-mode .form-text,
+html body.light-mode .expense-content,
+html body.light-mode .expense-content .fw-bold,
+html body.light-mode .expense-content .text-muted,
+html body.light-mode .expense-content .small,
+html body.light-mode .stats-card .display-6,
+html body.light-mode .stats-card h6 {
+  color: #1a202c !important;
+}
+
+/* Light mode backgrounds - WHITE/light colors */
+html body.light-mode,
+html body.light-mode .card,
+html body.light-mode .expense-content,
+html body.light-mode .expense-card,
+html body.light-mode .stats-card {
+  background: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* Specific stats card text styling for light mode */
+html body.light-mode .stats-card,
+html body.light-mode .stats-card *,
+html body.light-mode .stats-card .display-6,
+html body.light-mode .stats-card h6,
+html body.light-mode .stats-card .text-muted,
+html body.light-mode .stats-card small,
+html body.light-mode .stats-card i {
+  color: #1a202c !important;
+  background: rgba(255, 255, 255, 0.95) !important;
+}
+
+/* Dark mode: WHITE text on DARK backgrounds */
+html body.dark-mode div,
+html body.dark-mode span,
+html body.dark-mode p,
+html body.dark-mode h1,
+html body.dark-mode h2,
+html body.dark-mode h3,
+html body.dark-mode h4,
+html body.dark-mode h5,
+html body.dark-mode h6,
+html body.dark-mode td,
+html body.dark-mode th,
+html body.dark-mode li,
+html body.dark-mode label,
+html body.dark-mode .card-title,
+html body.dark-mode .card-text,
+html body.dark-mode .display-6,
+html body.dark-mode .text-muted,
+html body.dark-mode .small,
+html body.dark-mode .form-label,
+html body.dark-mode .form-text,
+html body.dark-mode .expense-content,
+html body.dark-mode .expense-content .fw-bold,
+html body.dark-mode .expense-content .text-muted,
+html body.dark-mode .expense-content .small,
+html body.dark-mode .stats-card .display-6,
+html body.dark-mode .stats-card h6,
+html body.dark-mode .stats-card .text-muted {
+  color: #ffffff !important;
+}
+
+/* Dark mode backgrounds - DARK colors */
+html body.dark-mode,
+html body.dark-mode .card,
+html body.dark-mode .expense-content,
+html body.dark-mode .expense-card,
+html body.dark-mode .stats-card {
+  background: rgba(45, 55, 72, 0.95) !important;
+}
+
+/* Specific stats card text styling for dark mode */
+html body.dark-mode .stats-card,
+html body.dark-mode .stats-card *,
+html body.dark-mode .stats-card .display-6,
+html body.dark-mode .stats-card h6,
+html body.dark-mode .stats-card .text-muted,
+html body.dark-mode .stats-card small,
+html body.dark-mode .stats-card i {
+  color: #ffffff !important;
+  background: rgba(45, 55, 72, 0.95) !important;
+}
+
+/* FINAL OVERRIDE - Maximum specificity for stats cards */
+html body.dark-mode .stats-card.total .display-6,
+html body.dark-mode .stats-card.person .display-6,
+html body.dark-mode .stats-card.total h6,
+html body.dark-mode .stats-card.person h6,
+html body.dark-mode .stats-card.total .text-muted,
+html body.dark-mode .stats-card.person .text-muted,
+html body.dark-mode .stats-card.total small,
+html body.dark-mode .stats-card.person small {
+  color: #ffffff !important;
+  background: none !important;
+  -webkit-text-fill-color: #ffffff !important;
+  -webkit-background-clip: initial !important;
+  background-clip: initial !important;
+}
+
+html body.light-mode .stats-card.total .display-6,
+html body.light-mode .stats-card.person .display-6,
+html body.light-mode .stats-card.total h6,
+html body.light-mode .stats-card.person h6,
+html body.light-mode .stats-card.total .text-muted,
+html body.light-mode .stats-card.person .text-muted,
+html body.light-mode .stats-card.total small,
+html body.light-mode .stats-card.person small {
+  color: #1a202c !important;
+  background: none !important;
+  -webkit-text-fill-color: #1a202c !important;
+  -webkit-background-clip: initial !important;
+  background-clip: initial !important;
+}
+
+/* Dark mode form elements */
+html body.dark-mode .form-control,
+html body.dark-mode .form-select {
+  background: rgba(26, 32, 44, 0.8) !important;
+  border-color: #4a5568 !important;
+  color: #ffffff !important;
+}
+
+html body.dark-mode .form-control::placeholder {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+
+/* Dark mode card sections */
+html body.dark-mode .card-header {
+  background: rgba(26, 32, 44, 0.8) !important;
+  color: #ffffff !important;
+  border-bottom: 1px solid #4a5568 !important;
+}
+
+html body.dark-mode .card-body {
+  background: rgba(45, 55, 72, 0.95) !important;
+  color: #ffffff !important;
 }
