@@ -1,0 +1,46 @@
+name: Keep Render App Alive
+
+on:
+  schedule:
+    # Run every 14 minutes to prevent Render free tier from sleeping
+    # GitHub Actions cron uses UTC time
+    - cron: '*/14 * * * *'
+  
+  workflow_dispatch: # Allow manual trigger from Actions tab
+
+jobs:
+  ping-app:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Ping Render App
+        run: |
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🚀 Keep-Alive Ping Started"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Time: $(date '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "App URL: ${{ secrets.APP_URL || 'https://your-app.onrender.com' }}"
+          echo ""
+          
+          # Ping the health endpoint
+          if curl -s -o /dev/null -w "%{http_code}" "${{ secrets.APP_URL || 'https://your-app.onrender.com' }}/status" | grep -q "200"; then
+            echo "✅ Successfully pinged app!"
+            echo "Status: App is awake and responsive"
+          else
+            echo "⚠️  Warning: App returned non-200 status"
+            echo "Status: App might be waking up from sleep"
+          fi
+          
+          echo ""
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "✅ Keep-Alive Ping Complete"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+      - name: Measure Response Time
+        run: |
+          echo ""
+          echo "⏱️  Measuring response time..."
+          time curl -s "${{ secrets.APP_URL || 'https://your-app.onrender.com' }}/status" > /dev/null || true
+          echo ""
+          echo "Note: Cold starts typically take 30-60 seconds"
+          echo "Warm responses should be under 1 second"
