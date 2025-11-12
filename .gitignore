@@ -1,47 +1,44 @@
-# Virtual environments
-venv/
-.venv/
-.env
-.env.*
-
-# Python cache
+# Python
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
 
-# SQLite / DB files
+# Database
+*.db
+*.sqlite
 *.sqlite3
-expenses.db
 
-# Secrets and keys
-*.pem
-*.key
-*.crt
-*.env
-
-# IDEs
+# IDE
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
 
-# Packaging
-build/
-dist/
-*.egg-info/
-
-# Docker
-.dockerignore
-
-# Misc
-*.log
-
-# Node/PWA artifacts (if any)
-node_modules/
-
-# Mac
+# OS
 .DS_Store
+Thumbs.db
 
-# Local development scripts with credentials
-run-local.sh
-start.sh
+# Environment
+.env
+.env.local
 
-TECHNICAL.md
-PROJECT_SUMMARY.md
+# Logs
+*.log
+/tmp/
+
+# Test
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Build
+dist/
+build/
+*.egg-info/
