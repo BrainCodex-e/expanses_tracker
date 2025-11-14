@@ -12,10 +12,60 @@
     <link rel="apple-touch-icon" href="https://via.placeholder.com/192.png?text=App">
   </head>
   <body>
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+      <div class="container">
+        <a class="navbar-brand" href="/">
+          <strong>💸 Expense Tracker</strong>
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav me-auto">
+            <li class="nav-item">
+              <a class="nav-link" href="/">
+                <span class="nav-icon">🏠</span> Dashboard
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/budget/dashboard">
+                <span class="nav-icon">📊</span> Budget
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link active" href="/budget/settings">
+                <span class="nav-icon">⚙️</span> Budget Settings
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('household_settings') }}">
+                <span class="nav-icon">👥</span> Household
+              </a>
+            </li>
+          </ul>
+          <ul class="navbar-nav">
+            {% if session.user %}
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                <strong>{{ session.user }}</strong>
+              </a>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="/budget/settings">⚙️ Budget Settings</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('household_settings') }}">👥 Household</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="/logout">🚪 Logout</a></li>
+              </ul>
+            </li>
+            {% endif %}
+          </ul>
+        </div>
+      </div>
+    </nav>
+    
     <div class="container my-4">
-      <div class="d-flex justify-content-between align-items-center mb-3">
+      <div class="mb-3">
         <h1>💰 Budget Settings</h1>
-        <a href="/" class="btn btn-outline-secondary">← Back to Dashboard</a>
       </div>
 
       {% with messages = get_flashed_messages(with_categories=true) %}

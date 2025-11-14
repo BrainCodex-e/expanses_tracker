@@ -24,44 +24,86 @@
       }
     </script>
     
+    <!-- Navigation Bar -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+      <div class="container">
+        <a class="navbar-brand" href="/">
+          <strong>💸 Expense Tracker</strong>
+        </a>
+        <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navbarNav">
+          <ul class="navbar-nav me-auto">
+            <li class="nav-item">
+              <a class="nav-link active" href="/">
+                <span class="nav-icon">�</span> Dashboard
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/budget/dashboard">
+                <span class="nav-icon">📊</span> Budget
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="/budget/settings">
+                <span class="nav-icon">⚙️</span> Budget Settings
+              </a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="{{ url_for('household_settings') }}">
+                <span class="nav-icon">👥</span> Household
+              </a>
+            </li>
+          </ul>
+          <ul class="navbar-nav">
+            <li class="nav-item">
+              <button class="btn btn-outline-light btn-sm me-2 theme-toggle" id="theme-toggle">
+                <span class="theme-icon">🌙</span>
+              </button>
+            </li>
+            {% if session.user %}
+            <li class="nav-item dropdown">
+              <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-bs-toggle="dropdown">
+                <strong>{{ session.user }}</strong>
+              </a>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="/budget/settings">⚙️ Budget Settings</a></li>
+                <li><a class="dropdown-item" href="{{ url_for('household_settings') }}">👥 Household</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item" href="/logout">🚪 Logout</a></li>
+              </ul>
+            </li>
+            {% else %}
+            <li class="nav-item">
+              <a class="btn btn-outline-light btn-sm" href="/login">Login</a>
+            </li>
+            {% endif %}
+          </ul>
+        </div>
+      </div>
+    </nav>
+    
     <div class="container my-4 fade-in">
       <div class="d-flex justify-content-between align-items-center mb-4">
         <div>
           <h1 class="mb-1">💸 {{ current_user.title() }}'s Expenses</h1>
-          <p class="text-muted mb-0 fw-500">Personal financial tracking</p>
-        </div>
-        <div class="text-end d-flex align-items-center gap-3">
-          <!-- Dark/Light Mode Toggle -->
-          <button class="btn btn-outline-secondary btn-sm theme-toggle" id="theme-toggle">
-            <span class="theme-icon">🌙</span>
-          </button>
-          <div class="badge bg-primary fs-6 px-3 py-2">{{ month_start.strftime('%B %Y') }}</div>
+          <p class="text-muted mb-0 fw-500">{{ month_start.strftime('%B %Y') }}</p>
         </div>
       </div>
 
-      <div class="d-flex justify-content-between align-items-center mb-3">
-        {% with messages = get_flashed_messages(with_categories=true) %}
-          {% if messages %}
-            <div>
-              {% for cat, msg in messages %}
-                <div class="alert alert-{{ 'success' if cat=='success' else 'danger' }}">{{ msg }}</div>
-              {% endfor %}
-            </div>
-          {% endif %}
-        {% endwith %}
-
-        <div>
-          {% if session.user %}
-            <span class="me-2">Signed in as <strong>{{ session.user }}</strong></span>
-            {% if session.user_id %}
-            <a class="btn btn-sm btn-outline-primary me-2" href="{{ url_for('household_settings') }}">👥 Household</a>
-            {% endif %}
-            <a class="btn btn-sm btn-outline-secondary" href="/logout">Logout</a>
-          {% else %}
-            <a class="btn btn-sm btn-outline-primary" href="/login">Login</a>
-          {% endif %}
-        </div>
-      </div>
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          <div class="mb-3">
+            {% for cat, msg in messages %}
+              <div class="alert alert-{{ 'success' if cat=='success' else 'danger' }} alert-dismissible fade show">
+                {{ msg }}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+              </div>
+            {% endfor %}
+          </div>
+        {% endif %}
+      {% endwith %}
 
       <div class="row">
         <div class="col-md-4">
