@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Household Settings - Expense Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container my-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>🏠 Household Settings</h1>
+            <a href="{{ url_for('index') }}" class="btn btn-outline-secondary">← Back to Dashboard</a>
+        </div>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'danger' if category == 'error' else category }} alert-dismissible fade show">
+                        {{ message }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <div class="row">
+            <!-- Household Info -->
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Household Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <p><strong>Name:</strong> {{ household.name }}</p>
+                        <p><strong>Role:</strong> 
+                            {% if household.is_owner %}
+                                <span class="badge bg-success">Owner</span>
+                            {% else %}
+                                <span class="badge bg-secondary">Member</span>
+                            {% endif %}
+                        </p>
+                        <p><strong>Total Members:</strong> {{ members|length }}</p>
+                        
+                        {% if household.is_owner and household.invite_code %}
+                        <hr>
+                        <p class="mb-2"><strong>Quick Invite Code:</strong></p>
+                        <div class="input-group">
+                            <input type="text" 
+                                   class="form-control" 
+                                   id="invite-code" 
+                                   value="{{ household.invite_code }}" 
+                                   readonly>
+                            <button class="btn btn-outline-secondary" 
+                                    type="button" 
+                                    onclick="copyCode()">
+                                📋 Copy
+                            </button>
+                        </div>
+                        <small class="text-muted">Share this code with people you want to invite</small>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <!-- Members List -->
+            <div class="col-md-6 mb-4">
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0">Members ({{ members|length }})</h5>
+                    </div>
+                    <div class="card-body">
+                        {% if members %}
+                        <ul class="list-group list-group-flush">
+                            {% for member in members %}
+                            <li class="list-group-item d-flex justify-content-between align-items-center">
+                                <div>
+                                    <strong>{{ member.username }}</strong>
+                                    {% if member.id == user_id %}
+                                        <span class="badge bg-primary ms-1">You</span>
+                                    {% endif %}
+                                    {% if member.is_household_owner %}
+                                        <span class="badge bg-success ms-1">Owner</span>
+                                    {% endif %}
+                                    <br>
+                                    <small class="text-muted">Joined {{ member.created_at[:10] }}</small>
+                                </div>
+                                {% if household.is_owner and member.id != user_id %}
+                                <form method="POST" action="{{ url_for('remove_member') }}" style="display:inline;">
+                                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                    <input type="hidden" name="member_id" value="{{ member.id }}">
+                                    <button type="submit" class="btn btn-sm btn-danger" 
+                                            onclick="return confirm('Remove {{ member.username }} from household?')">
+                                        Remove
+                                    </button>
+                                </form>
+                                {% endif %}
+                            </li>
+                            {% endfor %}
+                        </ul>
+                        {% else %}
+                        <p class="text-muted">No members yet</p>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Invite by Email -->
+        {% if household.is_owner %}
+        <div class="card mb-4">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0">📧 Invite Someone by Email</h5>
+            </div>
+            <div class="card-body">
+                <form method="POST" action="{{ url_for('invite_member') }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <div class="row">
+                        <div class="col-md-8 mb-3">
+                            <input type="email" 
+                                   name="email" 
+                                   class="form-control" 
+                                   placeholder="friend@example.com" 
+                                   required>
+                            <small class="text-muted">
+                                They'll receive an invitation link. If they don't have an account, 
+                                they can sign up using this email.
+                            </small>
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <button type="submit" class="btn btn-success w-100">
+                                Send Invitation
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- Pending Invites -->
+        {% if pending_invites %}
+        <div class="card mb-4">
+            <div class="card-header bg-warning">
+                <h5 class="mb-0">⏳ Pending Invitations</h5>
+            </div>
+            <div class="card-body">
+                <ul class="list-group">
+                    {% for invite in pending_invites %}
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>{{ invite.email }}</strong>
+                            <br>
+                            <small class="text-muted">
+                                Sent {{ invite.created_at[:10] }} • 
+                                Expires {{ invite.expires_at[:10] }}
+                            </small>
+                        </div>
+                        <span class="badge bg-warning">Pending</span>
+                    </li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+        {% endif %}
+
+        <!-- Leave Household -->
+        {% if not household.is_owner %}
+        <div class="card border-danger">
+            <div class="card-body">
+                <h5 class="card-title text-danger">Leave Household</h5>
+                <p class="card-text">
+                    If you leave, you'll create your own household and won't see shared expenses anymore.
+                </p>
+                <form method="POST" action="{{ url_for('leave_household') }}" 
+                      onsubmit="return confirm('Are you sure you want to leave this household?')">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                    <button type="submit" class="btn btn-danger">Leave Household</button>
+                </form>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        function copyCode() {
+            const input = document.getElementById('invite-code');
+            input.select();
+            document.execCommand('copy');
+            
+            const button = event.target;
+            const originalText = button.textContent;
+            button.textContent = '✓ Copied!';
+            button.classList.add('btn-success');
+            button.classList.remove('btn-outline-secondary');
+            
+            setTimeout(() => {
+                button.textContent = originalText;
+                button.classList.remove('btn-success');
+                button.classList.add('btn-outline-secondary');
+            }, 2000);
+        }
+    </script>
+</body>
+</html>

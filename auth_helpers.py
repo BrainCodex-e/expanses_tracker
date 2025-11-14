@@ -25,6 +25,14 @@ def signup_user(email: str, password: str, username: str, household_name: Option
         raise Exception("Supabase not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY")
     
     try:
+        # Check if username already exists
+        existing_username = client.table('profiles').select('username').eq('username', username).execute()
+        if existing_username.data and len(existing_username.data) > 0:
+            return {
+                "success": False,
+                "error": "Username already taken. Please choose a different username."
+            }
+        
         # Sign up with Supabase Auth
         response = client.auth.sign_up({
             "email": email,

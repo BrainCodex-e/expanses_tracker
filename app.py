@@ -910,9 +910,18 @@ def logout():
 @login_required
 def household_settings():
     """Household management page - invite, kick, view members"""
+    # For old auth users, show a simple household view based on DEFAULT_PEOPLE
     if not SUPABASE_AUTH_AVAILABLE or 'user_id' not in session:
-        flash('Household management requires Supabase Auth', 'error')
-        return redirect(url_for('index'))
+        # Old auth users - show their hardcoded household
+        current_user = session.get('user')
+        household_users = DEFAULT_PEOPLE if current_user in DEFAULT_PEOPLE else [current_user]
+        
+        return render_template(
+            'household_settings_legacy.html',
+            current_user=current_user,
+            household_users=household_users,
+            is_legacy=True
+        )
     
     try:
         from household_management import (
@@ -1035,6 +1044,39 @@ def kick_member(member_id):
             flash('Member removed from household', 'success')
         else:
             flash('Failed to remove member', 'error')
+            
+    except Exception as e:
+        flash(f'Error: {str(e)}', 'error')
+    
+    return redirect(url_for('household_settings'))
+
+
+@app.route('/household/leave', methods=['POST'])
+@login_required
+def leave_household():
+    """Leave current household"""
+    if not SUPABASE_AUTH_AVAILABLE or 'user_id' not in session:
+        flash('Feature not available', 'error')
+        return redirect(url_for('household_settings'))
+    
+    try:
+        from household_management import get_user_household, leave_household as leave_household_func
+        
+        user_id = session.get('user_id')
+        household = get_user_household(user_id)
+        
+        if not household:
+            flash('You are not in a household', 'error')
+            return redirect(url_for('household_settings'))
+        
+        if household['is_owner']:
+            flash('Household owners cannot leave. Transfer ownership or delete the household first.', 'error')
+            return redirect(url_for('household_settings'))
+        
+        if leave_household_func(user_id):
+            flash('You have left the household and created your own', 'success')
+        else:
+            flash('Failed to leave household', 'error')
             
     except Exception as e:
         flash(f'Error: {str(e)}', 'error')
