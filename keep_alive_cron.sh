@@ -2,8 +2,8 @@
 # Cron job script to ping your Render app every 14 minutes
 # Simpler alternative to the Python script
 
-# Your app URL (change this!)
-APP_URL="${APP_URL:-https://your-app.onrender.com}"
+# Your app URL
+APP_URL="${APP_URL:-https://expanses-tracker.onrender.com}"
 
 # Ping the health endpoint
 curl -s "${APP_URL}/status" > /dev/null 2>&1
