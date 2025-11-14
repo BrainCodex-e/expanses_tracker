@@ -53,6 +53,9 @@
         <div>
           {% if session.user %}
             <span class="me-2">Signed in as <strong>{{ session.user }}</strong></span>
+            {% if session.user_id %}
+            <a class="btn btn-sm btn-outline-primary me-2" href="{{ url_for('household_settings') }}">👥 Household</a>
+            {% endif %}
             <a class="btn btn-sm btn-outline-secondary" href="/logout">Logout</a>
           {% else %}
             <a class="btn btn-sm btn-outline-primary" href="/login">Login</a>

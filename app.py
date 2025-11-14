@@ -905,6 +905,143 @@ def logout():
     flash('Logged out successfully', 'success')
     return redirect(url_for('login'))
 
+
+@app.route('/household/settings')
+@login_required
+def household_settings():
+    """Household management page - invite, kick, view members"""
+    if not SUPABASE_AUTH_AVAILABLE or 'user_id' not in session:
+        flash('Household management requires Supabase Auth', 'error')
+        return redirect(url_for('index'))
+    
+    try:
+        from household_management import (
+            get_user_household, get_household_members, get_pending_invites
+        )
+        
+        user_id = session.get('user_id')
+        household = get_user_household(user_id)
+        
+        if not household:
+            flash('No household found', 'error')
+            return redirect(url_for('index'))
+        
+        members = get_household_members(household['id'])
+        pending_invites = get_pending_invites(household['id'])
+        
+        return render_template(
+            'household_settings.html',
+            household=household,
+            members=members,
+            pending_invites=pending_invites,
+            user_id=user_id
+        )
+    except Exception as e:
+        flash(f'Error loading household: {str(e)}', 'error')
+        return redirect(url_for('index'))
+
+
+@app.route('/household/invite', methods=['POST'])
+@login_required
+def invite_member():
+    """Send household invitation by email"""
+    if not SUPABASE_AUTH_AVAILABLE or 'user_id' not in session:
+        flash('Feature not available', 'error')
+        return redirect(url_for('index'))
+    
+    email = request.form.get('email', '').strip()
+    if not email:
+        flash('Email is required', 'error')
+        return redirect(url_for('household_settings'))
+    
+    try:
+        from household_management import get_user_household, create_household_invite
+        
+        user_id = session.get('user_id')
+        household = get_user_household(user_id)
+        
+        if not household or not household['is_owner']:
+            flash('Only household owners can invite members', 'error')
+            return redirect(url_for('household_settings'))
+        
+        invite_id = create_household_invite(household['id'], email, user_id)
+        
+        if invite_id:
+            # TODO: Send email with invite link
+            invite_url = f"{request.url_root}household/join/{invite_id}"
+            flash(f'Invitation created! Share this link: {invite_url}', 'success')
+        else:
+            flash('Failed to create invitation', 'error')
+            
+    except Exception as e:
+        flash(f'Error: {str(e)}', 'error')
+    
+    return redirect(url_for('household_settings'))
+
+
+@app.route('/household/join/<invite_id>')
+def join_household(invite_id):
+    """Accept household invitation"""
+    if not SUPABASE_AUTH_AVAILABLE:
+        flash('Feature not available', 'error')
+        return redirect(url_for('login'))
+    
+    # Must be logged in
+    if 'user_id' not in session:
+        session['pending_invite'] = invite_id
+        flash('Please log in to accept this invitation', 'info')
+        return redirect(url_for('login'))
+    
+    try:
+        from household_management import accept_household_invite, get_user_household
+        
+        user_id = session.get('user_id')
+        
+        if accept_household_invite(user_id, invite_id):
+            # Refresh household info in session
+            household = get_user_household(user_id)
+            if household:
+                session['household_id'] = household['id']
+            flash('Successfully joined household!', 'success')
+            return redirect(url_for('index'))
+        else:
+            flash('Failed to join household. Invite may be expired or invalid.', 'error')
+            
+    except Exception as e:
+        flash(f'Error: {str(e)}', 'error')
+    
+    return redirect(url_for('login'))
+
+
+@app.route('/household/kick/<member_id>', methods=['POST'])
+@login_required
+def kick_member(member_id):
+    """Remove a member from household"""
+    if not SUPABASE_AUTH_AVAILABLE or 'user_id' not in session:
+        flash('Feature not available', 'error')
+        return redirect(url_for('household_settings'))
+    
+    try:
+        from household_management import get_user_household, remove_household_member
+        
+        user_id = session.get('user_id')
+        household = get_user_household(user_id)
+        
+        if not household or not household['is_owner']:
+            flash('Only household owners can remove members', 'error')
+            return redirect(url_for('household_settings'))
+        
+        if remove_household_member(household['id'], member_id, user_id):
+            flash('Member removed from household', 'success')
+        else:
+            flash('Failed to remove member', 'error')
+            
+    except Exception as e:
+        flash(f'Error: {str(e)}', 'error')
+    
+    return redirect(url_for('household_settings'))
+
+
 init_db()
 
 
