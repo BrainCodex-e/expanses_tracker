@@ -25,6 +25,17 @@ from flask_wtf import CSRFProtect
 import pandas as pd
 import matplotlib.pyplot as plt
 
+# Import Supabase auth helpers
+try:
+    from auth_helpers import (
+        signup_user, login_user, logout_user, 
+        get_current_user, check_supabase_auth_enabled
+    )
+    SUPABASE_AUTH_AVAILABLE = check_supabase_auth_enabled()
+except ImportError:
+    print("⚠️  Supabase auth not available - using traditional auth")
+    SUPABASE_AUTH_AVAILABLE = False
+
 APP_DIR = Path(__file__).parent
 DB_PATH = APP_DIR / "expenses.db"
 
@@ -804,25 +815,94 @@ def login_required(fn):
     return wrapper
 
 
+@app.route('/signup', methods=['GET', 'POST'])
+def signup():
+    """Sign up with Supabase Auth"""
+    if not SUPABASE_AUTH_AVAILABLE:
+        flash('Signup is not available. Please contact the administrator.', 'error')
+        return redirect(url_for('login'))
+    
+    if request.method == 'POST':
+        email = request.form.get('email', '').strip()
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+        password_confirm = request.form.get('password_confirm', '')
+        household_name = request.form.get('household_name', '').strip()
+        
+        # Validation
+        if not all([email, username, password, password_confirm]):
+            flash('All fields except household name are required.', 'error')
+            return render_template('supabase_signup.html')
+        
+        if password != password_confirm:
+            flash('Passwords do not match.', 'error')
+            return render_template('supabase_signup.html')
+        
+        if len(password) < 6:
+            flash('Password must be at least 6 characters.', 'error')
+            return render_template('supabase_signup.html')
+        
+        # Sign up with Supabase
+        result = signup_user(email, password, username, household_name)
+        
+        if result['success']:
+            flash(result['message'], 'success')
+            # Store session info
+            if result.get('session'):
+                session['supabase_token'] = result['session'].access_token
+                session['user'] = username
+                session['email'] = email
+                return redirect(url_for('index'))
+            else:
+                return redirect(url_for('login'))
+        else:
+            flash(result.get('error', 'Signup failed'), 'error')
+            return render_template('supabase_signup.html')
+    
+    return render_template('supabase_signup.html')
+
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if request.method == 'POST':
         username = request.form.get('username')
         password = request.form.get('password')
+        
+        # Try Supabase auth first if available
+        if SUPABASE_AUTH_AVAILABLE:
+            result = login_user(username, password)
+            
+            if result['success']:
+                session['supabase_token'] = result['session'].access_token
+                session['user'] = result['username']
+                session['email'] = result['email']
+                session['user_id'] = result['user_id']
+                flash(f'Welcome back, {result["username"]}!', 'success')
+                next_url = request.args.get('next') or url_for('index')
+                return redirect(next_url)
+        
+        # Fall back to traditional auth (for existing users: erez, lia, mom, dad)
         pw_hash = USERS.get(username)
         if pw_hash and check_password_hash(pw_hash, password):
             session['user'] = username
+            flash(f'Welcome back, {username}!', 'success')
             next_url = request.args.get('next') or url_for('index')
             return redirect(next_url)
-        else:
-            flash('Invalid username or password', 'error')
-            return redirect(url_for('login'))
+        
+        # Both auth methods failed
+        flash('Invalid username or password', 'error')
+        return redirect(url_for('login'))
+    
     return render_template('login.html')
+
 
 
 @app.route('/logout')
 def logout():
-    session.pop('user', None)
+    if SUPABASE_AUTH_AVAILABLE and 'supabase_token' in session:
+        logout_user()
+    session.clear()
+    flash('Logged out successfully', 'success')
     return redirect(url_for('login'))
 
 init_db()

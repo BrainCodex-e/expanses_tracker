@@ -6,3 +6,9 @@ Flask-WTF==1.2.1
 python-dotenv==1.0.0
 psycopg2-binary==2.9.9
 
+postgrest==2.24.0
+realtime==2.24.0
+storage3==2.24.0
+supabase==2.24.0
+supabase-auth==2.24.0
+supabase-functions==2.24.0
