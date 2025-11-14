@@ -200,10 +200,8 @@ def init_db():
 
 def get_conn():
     if USE_POSTGRES:
-        print(f"DEBUG: Using PostgreSQL database: {DATABASE_URL[:30]}...")
         return psycopg2.connect(DATABASE_URL)
     else:
-        print(f"DEBUG: Using SQLite database: {DB_PATH}")
         return sqlite3.connect(DB_PATH)
 
 
@@ -323,13 +321,11 @@ def get_default_people(username=None):
 
 
 def add_expense(tx_date, category, amount, payer, notes, split_with=None):
-    print(f"DEBUG: Adding expense - Date: {tx_date}, Category: {category}, Amount: {amount}, Payer: {payer}, Split: {split_with}")
     conn = get_conn()
     cur = conn.cursor()
     
     # Get household for the payer
     household = get_user_household(payer)
-    print(f"DEBUG: Using household '{household}' for user '{payer}'")
     
     if USE_POSTGRES:
         cur.execute(
@@ -344,7 +340,6 @@ def add_expense(tx_date, category, amount, payer, notes, split_with=None):
     
     conn.commit()
     conn.close()
-    print(f"DEBUG: Expense added successfully to database with household '{household}'")
 
 
 def load_expenses(user=None):
@@ -362,18 +357,13 @@ def load_expenses(user=None):
             WHERE household = '{household}' OR payer IN ('{household_users_str}') 
             ORDER BY tx_date DESC, id DESC
             """
-            print(f"DEBUG: Loading expenses for user '{user}' in household '{household}' with users: {household_users}")
-            print(f"DEBUG: Query = {query}")
         else:
             query = "SELECT * FROM expenses ORDER BY tx_date DESC, id DESC"
-            print("DEBUG: Loading all expenses (no user filter)")
         
         df = pd.read_sql_query(query, conn, parse_dates=["tx_date"])
         conn.close()
-        print(f"DEBUG: Loaded {len(df)} expenses from database")
         return df
     else:
-        print("DEBUG: No database found, returning empty DataFrame")
         return pd.DataFrame()
 
 
@@ -442,7 +432,6 @@ def update_expense(expense_id, tx_date, category, amount, payer, notes, split_wi
 
 def get_user_budgets(username):
     """Get all budget limits for a specific user from database"""
-    print(f"DEBUG: Getting budgets for user '{username}'")
     
     try:
         conn = get_conn()
@@ -456,10 +445,7 @@ def get_user_budgets(username):
             cur.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='user_budgets'")
             table_exists = bool(cur.fetchone())
         
-        print(f"DEBUG: user_budgets table exists: {table_exists}")
-        
         if not table_exists:
-            print("DEBUG: user_budgets table missing, returning empty budget")
             conn.close()
             return {}
             
@@ -473,17 +459,14 @@ def get_user_budgets(username):
         
         budgets = {}
         rows = cur.fetchall()
-        print(f"DEBUG: Found {len(rows)} budget records for user '{username}' in database")
         
         for row in rows:
             category, budget_limit = row
             budgets[category] = float(budget_limit)
-            print(f"DEBUG: DB {username}/{category}: ₪{budget_limit}")
         
         conn.close()
         
         # Return only what's in the database - no fallbacks
-        print(f"DEBUG: Returning database budgets for {username}: {budgets}")
         return budgets
         
     except Exception as e:
@@ -493,7 +476,6 @@ def get_user_budgets(username):
 
 def set_user_budget(username, category, budget_limit):
     """Set or update a budget limit for a user and category"""
-    print(f"SET_BUDGET DEBUG: Setting budget for user '{username}', category '{category}', amount {budget_limit}")
     
     try:
         conn = get_conn()
@@ -502,9 +484,7 @@ def set_user_budget(username, category, budget_limit):
         # Get household for the user with fallback to 'default'
         try:
             household = get_user_household(username)
-            print(f"SET_BUDGET DEBUG: User '{username}' belongs to household '{household}'")
         except Exception as e:
-            print(f"SET_BUDGET WARNING: Household lookup failed for '{username}': {e}, using 'default'")
             household = 'default'
         
         # First try to ensure user_budgets table exists (production safety)
@@ -548,7 +528,6 @@ def set_user_budget(username, category, budget_limit):
                         """
                     )
                 conn.commit()
-                print(f"SET_BUDGET DEBUG: Created missing user_budgets table")
             except Exception as create_error:
                 print(f"SET_BUDGET CRITICAL: Cannot create user_budgets table: {create_error}")
                 raise create_error
@@ -569,14 +548,12 @@ def set_user_budget(username, category, budget_limit):
                         "UPDATE user_budgets SET budget_limit = %s, updated_at = CURRENT_TIMESTAMP, household = %s WHERE username = %s AND category = %s",
                         (float(budget_limit), household, username, category)
                     )
-                    print(f"SET_BUDGET DEBUG: Updated existing budget for {username}/{category}")
                 else:
                     # Insert new record
                     cur.execute(
                         "INSERT INTO user_budgets (username, category, budget_limit, updated_at, household) VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s)",
                         (username, category, float(budget_limit), household)
                     )
-                    print(f"SET_BUDGET DEBUG: Inserted new budget for {username}/{category}")
                     
             except Exception as manual_error:
                 print(f"SET_BUDGET ERROR: Manual upsert failed: {manual_error}")
@@ -600,7 +577,6 @@ def set_user_budget(username, category, budget_limit):
                         "INSERT INTO user_budgets (username, category, budget_limit, updated_at, household) VALUES (%s, %s, %s, CURRENT_TIMESTAMP, %s)",
                         (username, category, float(budget_limit), household)
                     )
-                    print(f"SET_BUDGET DEBUG: Replaced budget record for {username}/{category}")
                 except Exception as replace_error:
                     print(f"SET_BUDGET ERROR: Delete/insert failed: {replace_error}")
                     # Final fallback - try to update any existing record
@@ -609,7 +585,6 @@ def set_user_budget(username, category, budget_limit):
                             "UPDATE user_budgets SET budget_limit = %s, updated_at = CURRENT_TIMESTAMP, household = %s WHERE username = %s AND category = %s",
                             (float(budget_limit), household, username, category)
                         )
-                        print(f"SET_BUDGET DEBUG: Force-updated budget record for {username}/{category}")
                     except Exception as final_error:
                         print(f"SET_BUDGET CRITICAL: All upsert methods failed: {final_error}")
                         raise final_error
@@ -624,7 +599,6 @@ def set_user_budget(username, category, budget_limit):
         
         conn.commit()
         conn.close()
-        print(f"SET_BUDGET DEBUG: Successfully set budget for {username}/{category} = {budget_limit}")
         
     except Exception as e:
         print(f"SET_BUDGET ERROR: Failed to set budget for {username}/{category}: {str(e)}")
@@ -635,7 +609,6 @@ def set_user_budget(username, category, budget_limit):
 
 def delete_user_budget(username, category):
     """Delete a budget limit for a user and category"""
-    print(f"DELETE_BUDGET DEBUG: Deleting budget for user '{username}', category '{category}'")
     
     try:
         conn = get_conn()
@@ -644,9 +617,7 @@ def delete_user_budget(username, category):
         # Get household for the user with fallback
         try:
             household = get_user_household(username)
-            print(f"DELETE_BUDGET DEBUG: User '{username}' belongs to household '{household}'")
         except Exception as e:
-            print(f"DELETE_BUDGET WARNING: Household lookup failed for '{username}': {e}, using 'default'")
             household = 'default'
         
         # Check if table exists first (production safety)
@@ -668,7 +639,6 @@ def delete_user_budget(username, category):
         rows_affected = cur.rowcount
         conn.commit()
         conn.close()
-        print(f"DELETE_BUDGET DEBUG: Successfully deleted {rows_affected} budget record(s) for {username}/{category}")
         
     except Exception as e:
         print(f"DELETE_BUDGET ERROR: Failed to delete budget for {username}/{category}: {str(e)}")
@@ -772,7 +742,6 @@ cleanup_misc_category()
 
 # Session cookie hardening (can be disabled for local non-HTTPS testing by setting SESSION_COOKIE_SECURE=0)
 secure_cookies = os.environ.get("SESSION_COOKIE_SECURE", "1") != "0"
-print(f"CSRF/Session Debug: secure_cookies={secure_cookies}, SECRET_KEY set={'Yes' if app.config['SECRET_KEY'] else 'No'}")
 app.config.update(
     SESSION_COOKIE_SECURE=secure_cookies,
     SESSION_COOKIE_HTTPONLY=True,
@@ -1326,9 +1295,7 @@ def update_expense_route(expense_id):
 def delete():
     row_id = request.form.get("row_id")
     if row_id and row_id.isdigit():
-        print(f"DEBUG: Deleting expense row {row_id}")
         delete_row(int(row_id))
-        print(f"DEBUG: Row {row_id} deleted from database")
         flash(f"Row {row_id} deleted.", "success")
     else:
         flash("Please enter a numeric ID.", "error")
@@ -1496,7 +1463,6 @@ def budget_progress_png(person):
     """Generate budget progress chart for a specific person within household"""
     current_user = session.get('user', 'erez')
     df = load_expenses(user=current_user)
-    print(f"DEBUG: Total expenses loaded for household: {len(df)}")
     if df.empty:
         return "No data", 400
     
@@ -1509,13 +1475,11 @@ def budget_progress_png(person):
     else:
         month_end = date(month_start.year, month_start.month + 1, 1)
 
-    print(f"DEBUG: Filtering for {person} from {month_start} to {month_end}")
     mask = (pd.to_datetime(df["tx_date"]) >= pd.to_datetime(month_start)) & \
            (pd.to_datetime(df["tx_date"]) < pd.to_datetime(month_end)) & \
            (df["payer"].str.lower() == person.lower())
     
     person_df = df[mask].copy()
-    print(f"DEBUG: Found {len(person_df)} expenses for {person} this month")
     
     # Calculate spending by category (accounting for splits)
     if person_df.empty:
@@ -1680,9 +1644,14 @@ def update_budget():
         return redirect(url_for("budget_settings"))
 
 
+@app.route("/ping")
+def ping():
+    """Ultra-fast health check for keep-alive - no DB queries"""
+    return jsonify({"status": "ok", "timestamp": time.time()}), 200
+
 @app.route("/status")
 def status():
-    """Simple status check - no login required"""
+    """Detailed status check with DB info - no login required"""
     import time
     import os
     start_time = time.time()
@@ -2145,7 +2114,6 @@ def budget_dashboard():
         return redirect(url_for("login"))
         
     df = load_expenses()
-    print(f"BUDGET DEBUG: Loaded {len(df)} total expenses")
     
     # Calculate current month data for budget overview
     today = date.today()
@@ -2155,9 +2123,6 @@ def budget_dashboard():
     else:
         month_end = date(month_start.year, month_start.month + 1, 1)
     
-    print(f"BUDGET DEBUG: Current user: {current_user}")
-    print(f"BUDGET DEBUG: Date range: {month_start} to {month_end}")
-    
     # Calculate spending for current user only
     budget_status = {}
     total_spent_by_user = 0
@@ -2166,17 +2131,11 @@ def budget_dashboard():
     # Only process current user's data
     budget_status[current_user] = {}
     person_budgets = get_user_budgets(current_user)
-    print(f"BUDGET DEBUG: User budgets: {person_budgets}")
         
     # Simplified expense calculation
     spent_by_category = {}
     
     if not df.empty:
-        print(f"BUDGET DEBUG: Raw data - first few rows:")
-        print(f"BUDGET DEBUG: Dates: {df['tx_date'].head().tolist()}")
-        print(f"BUDGET DEBUG: Payers: {df['payer'].head().tolist()}")
-        print(f"BUDGET DEBUG: Categories: {df['category'].head().tolist()}")
-        
         # Convert dates more reliably
         try:
             df["tx_date_parsed"] = pd.to_datetime(df["tx_date"]).dt.date
@@ -2187,8 +2146,6 @@ def budget_dashboard():
                 else x if hasattr(x, 'year') 
                 else date.today())
         
-        print(f"BUDGET DEBUG: Parsed dates: {df['tx_date_parsed'].head().tolist()}")
-        
         # Simple filtering - current month and current user (case-insensitive)
         current_month_expenses = df[
             (df['tx_date_parsed'] >= month_start) & 
@@ -2196,12 +2153,7 @@ def budget_dashboard():
             (df['payer'].str.lower() == current_user.lower())
         ].copy()
         
-        print(f"BUDGET DEBUG: Found {len(current_month_expenses)} expenses for {current_user} this month")
-        
         if not current_month_expenses.empty:
-            print(f"BUDGET DEBUG: Current month expenses:")
-            for _, expense in current_month_expenses.iterrows():
-                print(f"  - {expense['tx_date_parsed']}: ₪{expense['amount']} ({expense['category']})")
             
             # Simple spending calculation (ignore splits for now to debug)
             for _, expense in current_month_expenses.iterrows():
@@ -2212,18 +2164,16 @@ def budget_dashboard():
                     spent_by_category[category] += amount
                 else:
                     spent_by_category[category] = amount
-        
-        print(f"BUDGET DEBUG: Calculated spending by category: {spent_by_category}")
+        else:
+            spent_by_category = {}
     else:
-        print("BUDGET DEBUG: No expenses found in database")
+        spent_by_category = {}
     
     # Calculate budget status for each category for current user
     for category, budget_limit in person_budgets.items():
         spent = spent_by_category.get(category, 0)
         remaining = max(0, budget_limit - spent)
         percentage = (spent / budget_limit * 100) if budget_limit > 0 else 0
-        
-        print(f"BUDGET DEBUG: {category} - Spent: ₪{spent}, Budget: ₪{budget_limit}")
         
         status = "success"  # Green
         if spent > budget_limit:
@@ -2241,8 +2191,6 @@ def budget_dashboard():
         
         total_spent_by_user += spent
         total_budget_by_user += budget_limit
-    
-    print(f"BUDGET DEBUG: Final totals - Spent: ₪{total_spent_by_user}, Budget: ₪{total_budget_by_user}")
     
     import time
     return render_template("budget_dashboard.html", 

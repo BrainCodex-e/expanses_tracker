@@ -55,11 +55,8 @@ def add_expense_supabase(tx_date: str, category: str, amount: float, payer: str,
         "household": household
     }
     
-    print(f"DEBUG: Adding expense to Supabase - {expense_data}")
-    
     try:
         response = client.table("expenses").insert(expense_data).execute()
-        print(f"DEBUG: Expense added successfully to Supabase")
         return response.data[0] if response.data else {}
     except Exception as e:
         print(f"ERROR: Failed to add expense to Supabase: {e}")
@@ -103,7 +100,6 @@ def load_expenses_supabase(user: Optional[str] = None,
     
     try:
         response = query.execute()
-        print(f"DEBUG: Loaded {len(response.data)} expenses from Supabase")
         return response.data
     except Exception as e:
         print(f"ERROR: Failed to load expenses from Supabase: {e}")
@@ -118,7 +114,6 @@ def delete_expense_supabase(expense_id: int) -> bool:
     
     try:
         response = client.table("expenses").delete().eq("id", expense_id).execute()
-        print(f"DEBUG: Deleted expense {expense_id} from Supabase")
         return True
     except Exception as e:
         print(f"ERROR: Failed to delete expense from Supabase: {e}")
@@ -144,7 +139,6 @@ def update_expense_supabase(expense_id: int, tx_date: str, category: str,
     
     try:
         response = client.table("expenses").update(update_data).eq("id", expense_id).execute()
-        print(f"DEBUG: Updated expense {expense_id} in Supabase")
         return response.data[0] if response.data else {}
     except Exception as e:
         print(f"ERROR: Failed to update expense in Supabase: {e}")
@@ -200,7 +194,6 @@ def set_user_budget_supabase(username: str, category: str, budget_limit: float, 
     try:
         # Try to upsert (insert or update)
         response = client.table("user_budgets").upsert(budget_data).execute()
-        print(f"DEBUG: Set budget for {username}/{category} = {budget_limit}")
         return True
     except Exception as e:
         print(f"ERROR: Failed to set budget in Supabase: {e}")
@@ -219,7 +212,6 @@ def delete_user_budget_supabase(username: str, category: str, household: str = "
             .eq("category", category)\
             .eq("household", household)\
             .execute()
-        print(f"DEBUG: Deleted budget for {username}/{category}")
         return True
     except Exception as e:
         print(f"ERROR: Failed to delete budget from Supabase: {e}")
@@ -262,7 +254,6 @@ def subscribe_to_expenses(callback, household: Optional[str] = None):
             )
         
         channel.subscribe()
-        print(f"DEBUG: Subscribed to realtime updates for expenses")
         return channel
     except Exception as e:
         print(f"ERROR: Failed to subscribe to realtime updates: {e}")
