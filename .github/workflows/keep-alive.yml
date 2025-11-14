@@ -3,14 +3,9 @@ name: Keep Render App Alive
 on:
   schedule:
     # Run every 14 minutes to prevent Render free tier from sleeping
-    # GitHub Actions cron uses UTC time
     - cron: '*/14 * * * *'
   
   workflow_dispatch: # Allow manual trigger from Actions tab
-
-env:
-  # Your Render app URL
-  APP_URL: https://expanses-tracker.onrender.com
 
 jobs:
   ping-app:
@@ -18,9 +13,9 @@ jobs:
     
     steps:
       - name: Ping Render App
-        env:
-          RENDER_URL: ${{ secrets.APP_URL || env.APP_URL }}
         run: |
+          RENDER_URL="https://expanses-tracker.onrender.com"
+          
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
           echo "🚀 Keep-Alive Ping Started"
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
@@ -45,9 +40,9 @@ jobs:
           echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
       - name: Measure Response Time
-        env:
-          RENDER_URL: ${{ secrets.APP_URL || env.APP_URL }}
         run: |
+          RENDER_URL="https://expanses-tracker.onrender.com"
+          
           echo ""
           echo "⏱️  Measuring response time..."
           START=$(date +%s%N)
