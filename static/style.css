@@ -732,6 +732,38 @@ h1, h5 {
   }
 }
 
+/* Fixes for mobile touchability issues:
+   - Ensure navbar items sit above any overlapping elements and are clickable
+   - Make alert close button tappable on small screens
+*/
+@media (max-width: 768px) {
+  .navbar {
+    position: relative;
+    z-index: 2000; /* above most page content */
+  }
+
+  .navbar .nav-link,
+  .navbar-brand,
+  .navbar-toggler,
+  .navbar .dropdown-toggle {
+    position: relative;
+    z-index: 2001;
+    pointer-events: auto;
+  }
+
+  /* Make flash alerts and their close buttons reliably tappable */
+  .alert {
+    position: relative;
+    z-index: 2010;
+    -webkit-tap-highlight-color: rgba(0,0,0,0.05);
+  }
+
+  .alert .btn-close {
+    pointer-events: auto;
+    z-index: 2011;
+  }
+}
+
 /* Performance optimizations */
 * {
   -webkit-font-smoothing: antialiased;
