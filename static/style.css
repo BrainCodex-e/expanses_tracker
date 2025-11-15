@@ -1,3 +1,51 @@
+/* Navigation Bar - Fix for mobile touch issues */
+nav.navbar {
+  position: relative;
+  z-index: 1030 !important;
+}
+
+/* Ensure first nav button is tappable on mobile */
+.navbar-nav .nav-item:first-child .nav-link {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: rgba(255,255,255,0.1);
+}
+
+@media (max-width: 991px) {
+  /* Collapsed navbar improvements for mobile */
+  .navbar-collapse {
+    position: relative;
+    z-index: 1031;
+  }
+  
+  /* Increase touch targets for nav links */
+  .navbar-nav .nav-link {
+    min-height: 48px;
+    padding: 12px 20px !important;
+    display: flex;
+    align-items: center;
+    font-size: 16px;
+  }
+  
+  /* Make brand and toggler accessible */
+  .navbar-brand {
+    position: relative;
+    z-index: 1032;
+    padding: 12px 0;
+  }
+  
+  .navbar-toggler {
+    position: relative;
+    z-index: 1032;
+    min-height: 48px;
+    min-width: 48px;
+    padding: 10px;
+  }
+}
+
 /* Theme Toggle Button */
 .theme-toggle {
   background: rgba(45, 55, 72, 0.95) !important;
@@ -729,38 +777,6 @@ h1, h5 {
   .form-control:focus {
     transform: none;
     box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
-  }
-}
-
-/* Fixes for mobile touchability issues:
-   - Ensure navbar items sit above any overlapping elements and are clickable
-   - Make alert close button tappable on small screens
-*/
-@media (max-width: 768px) {
-  .navbar {
-    position: relative;
-    z-index: 2000; /* above most page content */
-  }
-
-  .navbar .nav-link,
-  .navbar-brand,
-  .navbar-toggler,
-  .navbar .dropdown-toggle {
-    position: relative;
-    z-index: 2001;
-    pointer-events: auto;
-  }
-
-  /* Make flash alerts and their close buttons reliably tappable */
-  .alert {
-    position: relative;
-    z-index: 2010;
-    -webkit-tap-highlight-color: rgba(0,0,0,0.05);
-  }
-
-  .alert .btn-close {
-    pointer-events: auto;
-    z-index: 2011;
   }
 }
 

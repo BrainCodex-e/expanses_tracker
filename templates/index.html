@@ -710,5 +710,15 @@
         if (a) a.remove();
       }
     });
+
+    // Auto-dismiss success alerts after a short delay (mobile friendly)
+    window.addEventListener('load', function(){
+      document.querySelectorAll('.alert.alert-success').forEach(function(a){
+        setTimeout(function(){
+          try { a.classList.remove('show'); } catch(e){}
+          if (a.parentNode) a.parentNode.removeChild(a);
+        }, 6000);
+      });
+    });
   </script>
 </html>
