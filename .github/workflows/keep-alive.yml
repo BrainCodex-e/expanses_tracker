@@ -13,44 +13,57 @@ jobs:
     runs-on: ubuntu-latest
     
     steps:
-      - name: Ping Render App
+      - name: Curl ping (retries, cache-bust) and measure
         run: |
-          RENDER_URL="https://expanses-tracker.onrender.com"
-          
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "🚀 Keep-Alive Ping Started"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "Time: $(date '+%Y-%m-%d %H:%M:%S UTC')"
-          echo "App URL: ${RENDER_URL}"
-          echo ""
-          
-          # Ping the health endpoint
-          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "${RENDER_URL}/status")
-          
-          if [ "$HTTP_CODE" = "200" ]; then
-            echo "✅ Successfully pinged app!"
-            echo "Status: HTTP $HTTP_CODE - App is awake and responsive"
-          else
-            echo "⚠️  Warning: App returned HTTP $HTTP_CODE"
-            echo "Status: App might be waking up from sleep or endpoint issue"
+          # Prefer a secret for the URL, fall back to the public URL when not set
+          RENDER_URL="${{ secrets.RENDER_URL }}"
+          if [ -z "$RENDER_URL" ]; then
+            RENDER_URL="https://expanses-tracker.onrender.com"
           fi
-          
-          echo ""
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-          echo "✅ Keep-Alive Ping Complete"
-          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
-      - name: Measure Response Time
-        run: |
-          RENDER_URL="https://expanses-tracker.onrender.com/"
-          
-          echo ""
-          echo "⏱️  Measuring response time..."
-          START=$(date +%s%N)
-          curl -s "${RENDER_URL}/status" > /dev/null || true
-          END=$(date +%s%N)
-          DURATION=$(( (END - START) / 1000000 ))
-          echo "Response time: ${DURATION}ms"
-          echo ""
-          echo "Note: Cold starts typically take 30-60 seconds (30000-60000ms)"
-          echo "Warm responses should be under 1 second (1000ms)"
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "🚀 Keep-Alive (curl) Started"
+          echo "Time: $(date '+%Y-%m-%d %H:%M:%S UTC')"
+          echo "Target: $RENDER_URL"
+
+          # Build a cache-busting URL so each request looks fresh to any intermediary/cache
+          TARGET_URL="$RENDER_URL/?cache_bust=$(date +%s)"
+
+          echo "Calling: $TARGET_URL"
+
+          # Use curl with retries, no-cache header and a reasonable timeout.
+          # -f : fail on HTTP >=400 so we can catch errors
+          # -sS: silent but show errors
+          # --retry: retry transient failures
+          # --retry-delay: wait between retries
+          # --max-time: fail if server takes too long
+          # --write-out: output HTTP code and total time for measurement
+
+          RESULT=$(curl -f -sS --retry 3 --retry-delay 5 --max-time 20 \
+            -H "Cache-Control: no-cache" \
+            -w "%{http_code} %{time_total}" \
+            -o /dev/null \
+            "$TARGET_URL" 2>&1) || true
+
+          # RESULT will be like: "200 0.432" or empty on extreme failure
+          HTTP_CODE=$(echo "$RESULT" | awk '{print $1}')
+          TIME_TOTAL=$(echo "$RESULT" | awk '{print $2}')
+
+          if [ -z "$HTTP_CODE" ]; then
+            echo "⚠️  Request failed (no HTTP code). Output:" >&2
+            echo "$RESULT" >&2
+            exit 1
+          fi
+
+          echo "HTTP code: $HTTP_CODE"
+          printf "Response time: %s seconds\n" "$TIME_TOTAL"
+
+          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
+            echo "✅ App responded successfully"
+          else
+            echo "⚠️  App returned non-2xx status: $HTTP_CODE" >&2
+            # Don't fail the workflow on a transient 4xx/5xx (optional): exit 1
+          fi
+
+          echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+          echo "Complete"
