@@ -46,18 +46,29 @@
         const SUPABASE_URL = '{{ supabase_url }}';
         const SUPABASE_ANON_KEY = '{{ supabase_key }}';
         
+        console.log('🔐 Auth Callback Page Loaded');
+        console.log('URL Hash:', window.location.hash);
+        console.log('Supabase URL configured:', !!SUPABASE_URL);
+        
         const supabaseClient = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
         async function handleAuthCallback() {
             try {
+                console.log('🚀 Starting auth callback handler...');
+                
                 // Get the session from the URL hash
                 const { data, error } = await supabaseClient.auth.getSession();
+                
+                console.log('Session data:', data);
+                console.log('Session error:', error);
                 
                 if (error) {
                     throw error;
                 }
                 
                 if (data.session) {
+                    console.log('✅ Session found, user ID:', data.session.user.id);
+                    
                     // Get user profile
                     const { data: profile, error: profileError } = await supabaseClient
                         .from('profiles')
@@ -65,10 +76,15 @@
                         .eq('id', data.session.user.id)
                         .single();
                     
+                    console.log('Profile data:', profile);
+                    console.log('Profile error:', profileError);
+                    
                     if (profileError) {
                         console.error('Profile error:', profileError);
                         throw new Error('Could not load user profile');
                     }
+                    
+                    console.log('📤 Sending session to backend...');
                     
                     // Send session to Flask backend
                     const response = await fetch('/auth/session', {
@@ -85,18 +101,23 @@
                         })
                     });
                     
+                    const result = await response.json();
+                    console.log('Backend response:', result);
+                    
                     if (response.ok) {
+                        console.log('✅ Session established, redirecting...');
                         // Redirect to home page
                         window.location.href = '/';
                     } else {
-                        throw new Error('Failed to establish session');
+                        throw new Error(result.error || 'Failed to establish session');
                     }
                 } else {
                     // No session found
+                    console.warn('⚠️ No session in URL');
                     throw new Error('No authentication session found. Please try logging in again.');
                 }
             } catch (error) {
-                console.error('Auth callback error:', error);
+                console.error('❌ Auth callback error:', error);
                 const errorDiv = document.getElementById('error-message');
                 errorDiv.textContent = error.message || 'Authentication failed. Please try logging in again.';
                 errorDiv.classList.remove('d-none');

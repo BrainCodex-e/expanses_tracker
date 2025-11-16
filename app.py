@@ -752,9 +752,6 @@ app.config.update(
 csrf = CSRFProtect()
 csrf.init_app(app)
 
-# Exempt auth callback session endpoint from CSRF (called via fetch from client)
-csrf.exempt('auth_session')
-
 
 def load_users_from_env():
     """Load users from USERS env var: format 'user1:pass1,user2:pass2'. Returns dict username->pw_hash."""
@@ -886,6 +883,7 @@ def auth_callback():
 
 
 @app.route('/auth/session', methods=['POST'])
+@csrf.exempt
 def auth_session():
     """Receive session data from client-side auth callback"""
     if not SUPABASE_AUTH_AVAILABLE:
