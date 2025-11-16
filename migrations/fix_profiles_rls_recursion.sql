@@ -15,9 +15,9 @@ CREATE POLICY "Users can view profiles in their household"
             -- Check if user and target profile share a household
             -- Using EXISTS with an alias prevents recursion
             SELECT 1
-            FROM public.profiles AS current_user
-            WHERE current_user.id = auth.uid()
-            AND current_user.household_id = profiles.household_id
+            FROM public.profiles AS user_profile
+            WHERE user_profile.id = auth.uid()
+            AND user_profile.household_id = profiles.household_id
         )
     );
 
