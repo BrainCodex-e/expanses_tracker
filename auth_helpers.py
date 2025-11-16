@@ -25,13 +25,9 @@ def signup_user(email: str, password: str, username: str, household_name: Option
         raise Exception("Supabase not configured. Set SUPABASE_URL and SUPABASE_ANON_KEY")
     
     try:
-        # Check if username already exists
-        existing_username = client.table('profiles').select('username').eq('username', username).execute()
-        if existing_username.data and len(existing_username.data) > 0:
-            return {
-                "success": False,
-                "error": "Username already taken. Please choose a different username."
-            }
+        # Note: Username uniqueness is enforced by database constraint
+        # Pre-signup check removed because RLS blocks anonymous queries
+        # Duplicate usernames will be caught by the trigger/constraint
         
         # Sign up with Supabase Auth
         response = client.auth.sign_up({
@@ -66,10 +62,15 @@ def signup_user(email: str, password: str, username: str, household_name: Option
         # Parse common Supabase errors
         if "already registered" in error_msg.lower() or "already exists" in error_msg.lower():
             return {"success": False, "error": "Email already registered"}
+        elif "duplicate key" in error_msg.lower() or "unique constraint" in error_msg.lower():
+            if "username" in error_msg.lower():
+                return {"success": False, "error": "Username already taken. Please choose a different username."}
+            else:
+                return {"success": False, "error": "Account with this information already exists"}
         elif "password" in error_msg.lower():
             return {"success": False, "error": "Password must be at least 6 characters"}
         else:
-            return {"success": False, "error": "Failed to create account"}
+            return {"success": False, "error": f"Failed to create account: {error_msg}"}
 
 
 def login_user(email: str, password: str) -> Dict:
