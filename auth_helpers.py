@@ -37,7 +37,8 @@ def signup_user(email: str, password: str, username: str, household_name: Option
                 "data": {
                     "username": username,
                     "household_name": household_name or f"{username}'s Household"
-                }
+                },
+                "email_redirect_to": f"{os.environ.get('APP_URL', 'http://localhost:8000')}/auth/callback"
             }
         })
         

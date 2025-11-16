@@ -752,6 +752,9 @@ app.config.update(
 csrf = CSRFProtect()
 csrf.init_app(app)
 
+# Exempt auth callback session endpoint from CSRF (called via fetch from client)
+csrf.exempt('auth_session')
+
 
 def load_users_from_env():
     """Load users from USERS env var: format 'user1:pass1,user2:pass2'. Returns dict username->pw_hash."""
@@ -864,6 +867,49 @@ def login():
     
     return render_template('login.html')
 
+
+
+@app.route('/auth/callback')
+def auth_callback():
+    """Handle Supabase auth callback (email confirmation, OAuth, etc.)"""
+    if not SUPABASE_AUTH_AVAILABLE:
+        flash('Authentication not available', 'error')
+        return redirect(url_for('login'))
+    
+    # Render callback page that will handle URL fragments client-side
+    from supabase_config import get_supabase_client
+    client = get_supabase_client()
+    
+    return render_template('auth_callback.html',
+                         supabase_url=os.environ.get('SUPABASE_URL'),
+                         supabase_key=os.environ.get('SUPABASE_ANON_KEY'))
+
+
+@app.route('/auth/session', methods=['POST'])
+def auth_session():
+    """Receive session data from client-side auth callback"""
+    if not SUPABASE_AUTH_AVAILABLE:
+        return jsonify({'error': 'Authentication not available'}), 400
+    
+    try:
+        data = request.get_json()
+        
+        # Validate required fields
+        required_fields = ['access_token', 'user_id', 'email', 'username']
+        if not all(field in data for field in required_fields):
+            return jsonify({'error': 'Missing required fields'}), 400
+        
+        # Set session data
+        session['supabase_token'] = data['access_token']
+        session['user'] = data['username']
+        session['email'] = data['email']
+        session['user_id'] = data['user_id']
+        
+        return jsonify({'success': True, 'message': 'Session established'}), 200
+        
+    except Exception as e:
+        print(f"❌ Session setup error: {e}")
+        return jsonify({'error': str(e)}), 500
 
 
 @app.route('/logout')

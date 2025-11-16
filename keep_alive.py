@@ -17,8 +17,8 @@ import os
 # Your app URL (change this to your Render URL)
 APP_URL = os.environ.get("APP_URL", "https://your-app.onrender.com")
 
-# Ping interval in seconds (12 minutes = 720 seconds)
-PING_INTERVAL = 12 * 60  # 12 minutes
+# Ping interval in seconds (10 minutes = 600 seconds)
+PING_INTERVAL = 10 * 60  # 10 minutes
 
 # Health check endpoint
 HEALTH_ENDPOINT = f"{APP_URL}/status"
