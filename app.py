@@ -839,16 +839,25 @@ def login():
         
         # Try Supabase auth first if available
         if SUPABASE_AUTH_AVAILABLE:
-            result = login_user(username, password)
+            from supabase_config import get_supabase_client
+            client = get_supabase_client()
             
-            if result['success']:
-                session['supabase_token'] = result['session'].access_token
-                session['user'] = result['username']
-                session['email'] = result['email']
-                session['user_id'] = result['user_id']
-                flash(f'Welcome back, {result["username"]}!', 'success')
-                next_url = request.args.get('next') or url_for('index')
-                return redirect(next_url)
+            try:
+                # Look up user by username to get their auth user ID
+                profile_result = client.table('profiles').select('id, username').eq('username', username).execute()
+                
+                if profile_result.data and len(profile_result.data) > 0:
+                    user_id = profile_result.data[0]['id']
+                    
+                    # Try to get user email by querying auth.users view (if accessible)
+                    # Since we can't access auth.users directly, we'll try all possible emails
+                    # Better approach: store email in profiles or user_metadata during signup
+                    
+                    # For now, try to authenticate with a SQL function
+                    # Let's create a simpler approach - just confirm the email manually for testing
+                    print(f"Found profile for username '{username}' with ID: {user_id}")
+            except Exception as e:
+                print(f"Supabase auth lookup error: {e}")
         
         # Fall back to traditional auth (for existing users: erez, lia, mom, dad)
         pw_hash = USERS.get(username)
