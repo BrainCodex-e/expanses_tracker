@@ -25,7 +25,17 @@ def get_ai_client():
         print("⚠️  OPENAI_API_KEY not set")
         return None
     
-    return OpenAI(api_key=api_key)
+    try:
+        # Initialize OpenAI client - let it use default HTTP client
+        client = OpenAI(
+            api_key=api_key,
+            timeout=30.0,  # Set reasonable timeout
+            max_retries=2  # Retry failed requests
+        )
+        return client
+    except Exception as e:
+        print(f"⚠️  OpenAI client initialization error: {e}")
+        return None
 
 
 def generate_spending_insights(month_df: pd.DataFrame, budgets: Dict, previous_month_df: Optional[pd.DataFrame] = None) -> Dict:
