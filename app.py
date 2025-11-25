@@ -2216,22 +2216,29 @@ def monthly_summary():
         ai_insights = None
         try:
             from ai_insights import generate_spending_insights
+            print(f"🤖 Generating AI insights for {len(month_df)} transactions")
             if not month_df.empty:
                 ai_insights = generate_spending_insights(month_df, budgets_by_user, previous_month_df)
+                print(f"✅ AI insights generated: enabled={ai_insights.get('enabled')}")
+                print(f"   Tips: {len(ai_insights.get('tips', []))}, Warnings: {len(ai_insights.get('warnings', []))}")
             else:
                 ai_insights = {
                     'enabled': False,
+                    'insights': [],
                     'tips': [],
                     'warnings': [],
                     'summary': 'No data for AI analysis'
                 }
         except Exception as e:
             print(f"⚠️  AI insights disabled: {e}")
+            import traceback
+            traceback.print_exc()
             ai_insights = {
                 'enabled': False,
+                'insights': [],
                 'tips': [],
                 'warnings': [],
-                'summary': 'AI insights not available'
+                'summary': f'AI insights not available: {str(e)}'
             }
         
         # Convert recent expenses to dict

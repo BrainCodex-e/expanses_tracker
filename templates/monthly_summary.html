@@ -8,17 +8,40 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
     <style>
         .month-selector {
-            background: var(--bs-body-bg);
+            background: rgba(255, 255, 255, 0.95);
             padding: 20px;
             border-radius: 10px;
             margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
         .summary-card {
-            background: var(--bs-body-bg);
+            background: rgba(255, 255, 255, 0.95);
             border-radius: 10px;
             padding: 20px;
             margin-bottom: 20px;
             box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            color: #1a202c;
+        }
+        /* Dark mode overrides */
+        html body.dark-mode .month-selector {
+            background: rgba(45, 55, 72, 0.95);
+            color: #ffffff;
+        }
+        html body.dark-mode .summary-card {
+            background: rgba(45, 55, 72, 0.95);
+            color: #ffffff;
+        }
+        html body.dark-mode .summary-card * {
+            color: #ffffff !important;
+        }
+        /* Light mode text */
+        html body.light-mode .month-selector,
+        html body.light-mode .summary-card {
+            background: rgba(255, 255, 255, 0.95);
+            color: #1a202c;
+        }
+        html body.light-mode .summary-card * {
+            color: #1a202c !important;
         }
         .stat-box {
             text-align: center;
@@ -27,11 +50,23 @@
         .stat-value {
             font-size: 2rem;
             font-weight: bold;
-            color: var(--bs-primary);
+            color: #667eea;
         }
         .stat-label {
             font-size: 0.9rem;
-            color: var(--bs-secondary);
+            color: #718096;
+        }
+        html body.light-mode .stat-value {
+            color: #667eea !important;
+        }
+        html body.light-mode .stat-label {
+            color: #718096 !important;
+        }
+        html body.dark-mode .stat-value {
+            color: #ffffff !important;
+        }
+        html body.dark-mode .stat-label {
+            color: rgba(255,255,255,0.7) !important;
         }
         .budget-bar {
             height: 30px;
@@ -54,7 +89,14 @@
         .budget-danger { background: #dc3545; }
     </style>
 </head>
-<body>
+<body class="fade-in">
+    <script>
+        // Apply saved theme immediately to prevent flash
+        (function() {
+            const theme = localStorage.getItem('theme') || 'light';
+            document.body.classList.add(theme + '-mode');
+        })();
+    </script>
     <!-- Navigation -->
     <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
         <div class="container-fluid">
@@ -309,6 +351,23 @@
                 }, 6000);
             });
         });
+        
+        // Theme persistence
+        function setTheme(theme) {
+            document.body.classList.remove('light-mode', 'dark-mode');
+            document.body.classList.add(theme + '-mode');
+            localStorage.setItem('theme', theme);
+        }
+        
+        // Check for theme toggle button if it exists
+        const themeToggle = document.querySelector('.theme-toggle');
+        if (themeToggle) {
+            themeToggle.addEventListener('click', function() {
+                const currentTheme = localStorage.getItem('theme') || 'light';
+                const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+                setTheme(newTheme);
+            });
+        }
     </script>
 </body>
 </html>
