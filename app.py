@@ -2123,7 +2123,7 @@ def test_db():
 @app.route("/monthly/summary")
 @login_required
 def monthly_summary():
-    """Monthly summary page showing expenses breakdown by month"""
+    """Monthly summary page showing expenses breakdown by month with AI insights"""
     current_user = session.get('user')
     
     # Get all expenses for the user
@@ -2152,6 +2152,10 @@ def monthly_summary():
     
     # Filter for selected month
     month_df = df[df["year_month"] == selected_period]
+    
+    # Get previous month data for comparison
+    previous_period = selected_period - 1
+    previous_month_df = df[df["year_month"] == previous_period] if previous_period in df["year_month"].values else None
     
     # Calculate summary statistics
     total_spent = month_df["amount"].sum()
@@ -2193,6 +2197,20 @@ def monthly_summary():
                 'percentage': percentage
             })
     
+    # Generate AI insights
+    ai_insights = None
+    try:
+        from ai_insights import generate_spending_insights
+        ai_insights = generate_spending_insights(month_df, budgets_by_user, previous_month_df)
+    except Exception as e:
+        print(f"⚠️  AI insights disabled: {e}")
+        ai_insights = {
+            'enabled': False,
+            'tips': [],
+            'warnings': [],
+            'summary': 'AI insights not available'
+        }
+    
     return render_template('monthly_summary.html',
                          available_months=available_months,
                          selected_month=selected_period,
@@ -2201,7 +2219,8 @@ def monthly_summary():
                          category_summary=category_summary.to_dict('records'),
                          payer_summary=payer_summary.to_dict('records'),
                          budget_usage=budget_usage,
-                         recent_expenses=month_df.head(10).to_dict('records'))
+                         recent_expenses=month_df.head(10).to_dict('records'),
+                         ai_insights=ai_insights)
 
 
 @app.route("/debug/expenses")

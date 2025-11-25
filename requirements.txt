@@ -12,3 +12,5 @@ storage3==2.24.0
 supabase==2.24.0
 supabase-auth==2.24.0
 supabase-functions==2.24.0
+
+openai==1.54.0
