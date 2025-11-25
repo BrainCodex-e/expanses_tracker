@@ -2212,34 +2212,35 @@ def monthly_summary():
                     'percentage': float(percentage)
                 })
         
-        # Generate AI insights
+        # Generate insights (try AI first, fallback to local analysis)
         ai_insights = None
         try:
             from ai_insights import generate_spending_insights
-            print(f"🤖 Generating AI insights for {len(month_df)} transactions")
+            print(f"🤖 Trying AI insights for {len(month_df)} transactions")
             if not month_df.empty:
                 ai_insights = generate_spending_insights(month_df, budgets_by_user, previous_month_df)
-                print(f"✅ AI insights generated: enabled={ai_insights.get('enabled')}")
-                print(f"   Tips: {len(ai_insights.get('tips', []))}, Warnings: {len(ai_insights.get('warnings', []))}")
+                if ai_insights and ai_insights.get('enabled'):
+                    print(f"✅ AI insights generated: Tips: {len(ai_insights.get('tips', []))}, Warnings: {len(ai_insights.get('warnings', []))}")
+                else:
+                    raise Exception("AI insights returned disabled")
             else:
+                raise Exception("No data available")
+        except Exception as e:
+            print(f"⚠️  AI insights unavailable ({str(e)[:50]}), using FREE local analysis...")
+            # Use free local insights as fallback
+            try:
+                from local_insights import generate_local_insights
+                ai_insights = generate_local_insights(month_df, budgets_by_user, previous_month_df)
+                print(f"✅ Local insights generated: Tips: {len(ai_insights.get('tips', []))}, Warnings: {len(ai_insights.get('warnings', []))}")
+            except Exception as e2:
+                print(f"❌ Local insights also failed: {e2}")
                 ai_insights = {
                     'enabled': False,
                     'insights': [],
                     'tips': [],
                     'warnings': [],
-                    'summary': 'No data for AI analysis'
+                    'summary': 'Insights temporarily unavailable'
                 }
-        except Exception as e:
-            print(f"⚠️  AI insights disabled: {e}")
-            import traceback
-            traceback.print_exc()
-            ai_insights = {
-                'enabled': False,
-                'insights': [],
-                'tips': [],
-                'warnings': [],
-                'summary': f'AI insights not available: {str(e)}'
-            }
         
         # Convert recent expenses to dict
         recent_expenses = month_df.head(10).to_dict('records') if not month_df.empty else []
