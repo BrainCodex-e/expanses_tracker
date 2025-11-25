@@ -342,9 +342,30 @@ def add_expense(tx_date, category, amount, payer, notes, split_with=None):
     conn.close()
 
 
-def load_expenses(user=None):
+def load_expenses(user=None, month=None, year=None):
+    """
+    Load expenses, optionally filtered by month and year
+    
+    Args:
+        user: Filter by user's household
+        month: Filter by month (1-12), None for all months
+        year: Filter by year (e.g., 2025), None for current year
+    """
     if USE_POSTGRES or Path(DB_PATH).exists():
         conn = get_conn()
+        
+        # Build date filter
+        date_filter = ""
+        if month is not None and year is not None:
+            if USE_POSTGRES:
+                date_filter = f"AND EXTRACT(MONTH FROM tx_date) = {month} AND EXTRACT(YEAR FROM tx_date) = {year}"
+            else:
+                date_filter = f"AND strftime('%m', tx_date) = '{month:02d}' AND strftime('%Y', tx_date) = '{year}'"
+        elif year is not None:
+            if USE_POSTGRES:
+                date_filter = f"AND EXTRACT(YEAR FROM tx_date) = {year}"
+            else:
+                date_filter = f"AND strftime('%Y', tx_date) = '{year}'"
         
         if user:
             # Filter by household
@@ -354,11 +375,13 @@ def load_expenses(user=None):
             
             query = f"""
             SELECT * FROM expenses 
-            WHERE household = '{household}' OR payer IN ('{household_users_str}') 
+            WHERE (household = '{household}' OR payer IN ('{household_users_str}'))
+            {date_filter}
             ORDER BY tx_date DESC, id DESC
             """
         else:
-            query = "SELECT * FROM expenses ORDER BY tx_date DESC, id DESC"
+            where_clause = date_filter.replace("AND", "WHERE", 1) if date_filter else ""
+            query = f"SELECT * FROM expenses {where_clause} ORDER BY tx_date DESC, id DESC"
         
         df = pd.read_sql_query(query, conn, parse_dates=["tx_date"])
         conn.close()
@@ -2095,6 +2118,90 @@ def test_db():
         
     except Exception as e:
         return f"<h1>Database Error</h1><p>Error: {str(e)}</p><p><a href='/'>← Back</a></p>"
+
+
+@app.route("/monthly/summary")
+@login_required
+def monthly_summary():
+    """Monthly summary page showing expenses breakdown by month"""
+    current_user = session.get('user')
+    
+    # Get all expenses for the user
+    df = load_expenses(user=current_user)
+    
+    if df.empty:
+        flash('No expenses found', 'info')
+        return redirect(url_for('index'))
+    
+    # Convert dates
+    df["tx_date"] = pd.to_datetime(df["tx_date"])
+    df["year_month"] = df["tx_date"].dt.to_period('M')
+    
+    # Get unique months sorted
+    available_months = sorted(df["year_month"].unique(), reverse=True)
+    
+    # Get selected month from query params or use current month
+    selected_month = request.args.get('month')
+    if selected_month:
+        try:
+            selected_period = pd.Period(selected_month, freq='M')
+        except:
+            selected_period = pd.Period(date.today(), freq='M')
+    else:
+        selected_period = pd.Period(date.today(), freq='M')
+    
+    # Filter for selected month
+    month_df = df[df["year_month"] == selected_period]
+    
+    # Calculate summary statistics
+    total_spent = month_df["amount"].sum()
+    total_transactions = len(month_df)
+    
+    # Group by category
+    category_summary = month_df.groupby("category")["amount"].agg(['sum', 'count']).reset_index()
+    category_summary.columns = ['category', 'total', 'count']
+    category_summary = category_summary.sort_values('total', ascending=False)
+    
+    # Group by payer
+    payer_summary = month_df.groupby("payer")["amount"].agg(['sum', 'count']).reset_index()
+    payer_summary.columns = ['payer', 'total', 'count']
+    payer_summary = payer_summary.sort_values('total', ascending=False)
+    
+    # Get budget information for the month
+    household_users = get_household_users(current_user)
+    budgets_by_user = {}
+    for user in household_users:
+        user_budgets = get_user_budgets(user, current_user)
+        if user_budgets:
+            budgets_by_user[user] = user_budgets
+    
+    # Calculate budget usage per category
+    budget_usage = []
+    for user in household_users:
+        user_month_df = month_df[month_df["payer"] == user]
+        user_budgets = budgets_by_user.get(user, {})
+        
+        for category, budget_limit in user_budgets.items():
+            spent = user_month_df[user_month_df["category"] == category]["amount"].sum()
+            percentage = (spent / budget_limit * 100) if budget_limit > 0 else 0
+            budget_usage.append({
+                'user': user,
+                'category': category,
+                'budget': budget_limit,
+                'spent': spent,
+                'remaining': budget_limit - spent,
+                'percentage': percentage
+            })
+    
+    return render_template('monthly_summary.html',
+                         available_months=available_months,
+                         selected_month=selected_period,
+                         total_spent=total_spent,
+                         total_transactions=total_transactions,
+                         category_summary=category_summary.to_dict('records'),
+                         payer_summary=payer_summary.to_dict('records'),
+                         budget_usage=budget_usage,
+                         recent_expenses=month_df.head(10).to_dict('records'))
 
 
 @app.route("/debug/expenses")

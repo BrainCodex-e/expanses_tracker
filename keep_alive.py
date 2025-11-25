@@ -17,8 +17,8 @@ import subprocess
 # Your app URL (change this to your Render URL)
 APP_URL = os.environ.get("APP_URL", "https://expanses-tracker.onrender.com")
 
-# Ping interval in seconds (10 minutes = 600 seconds)
-PING_INTERVAL = 10 * 60  # 10 minutes
+# Ping interval in seconds (5 minutes = 300 seconds)
+PING_INTERVAL = 5 * 60  # 5 minutes
 
 # Health check endpoint
 HEALTH_ENDPOINT = f"{APP_URL}/status"

@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monthly Summary - Expense Tracker</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        .month-selector {
+            background: var(--bs-body-bg);
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        .summary-card {
+            background: var(--bs-body-bg);
+            border-radius: 10px;
+            padding: 20px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .stat-box {
+            text-align: center;
+            padding: 15px;
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: var(--bs-primary);
+        }
+        .stat-label {
+            font-size: 0.9rem;
+            color: var(--bs-secondary);
+        }
+        .budget-bar {
+            height: 30px;
+            border-radius: 5px;
+            overflow: hidden;
+            background: #e9ecef;
+        }
+        .budget-fill {
+            height: 100%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 0.85rem;
+        }
+        .budget-good { background: #28a745; }
+        .budget-warning { background: #ffc107; }
+        .budget-danger { background: #dc3545; }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="/">💰 Expense Tracker</a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="/">Home</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/budget/dashboard">Budget</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="/monthly/summary">Monthly</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/household/settings">Settings</a></li>
+                    <li class="nav-item"><a class="nav-link" href="/logout">Logout</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <!-- Flash Messages -->
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show">
+                    {{ message }}
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <h1 class="mb-4">📊 Monthly Summary</h1>
+
+        <!-- Month Selector -->
+        <div class="month-selector">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <h4>Select Month</h4>
+                    <form method="GET" class="row g-2">
+                        <div class="col-auto">
+                            <select name="month" class="form-select" onchange="this.form.submit()">
+                                {% for month in available_months %}
+                                <option value="{{ month }}" {% if month == selected_month %}selected{% endif %}>
+                                    {{ month.strftime('%B %Y') }}
+                                </option>
+                                {% endfor %}
+                            </select>
+                        </div>
+                    </form>
+                </div>
+                <div class="col-md-6 text-end">
+                    <h5 class="mb-0">{{ selected_month.strftime('%B %Y') }}</h5>
+                    <small class="text-muted">Viewing expenses for this period</small>
+                </div>
+            </div>
+        </div>
+
+        <!-- Summary Stats -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="summary-card">
+                    <div class="stat-box">
+                        <div class="stat-value">₪{{ "%.2f"|format(total_spent) }}</div>
+                        <div class="stat-label">Total Spent</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="summary-card">
+                    <div class="stat-box">
+                        <div class="stat-value">{{ total_transactions }}</div>
+                        <div class="stat-label">Transactions</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Category Breakdown -->
+        <div class="summary-card">
+            <h4 class="mb-3">📈 Spending by Category</h4>
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Category</th>
+                            <th>Transactions</th>
+                            <th class="text-end">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in category_summary %}
+                        <tr>
+                            <td>{{ item.category }}</td>
+                            <td><span class="badge bg-secondary">{{ item.count }}</span></td>
+                            <td class="text-end"><strong>₪{{ "%.2f"|format(item.total) }}</strong></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Budget Usage -->
+        {% if budget_usage %}
+        <div class="summary-card">
+            <h4 class="mb-3">💳 Budget Usage</h4>
+            {% for item in budget_usage %}
+            <div class="mb-3">
+                <div class="d-flex justify-content-between mb-1">
+                    <span><strong>{{ item.user }}</strong> - {{ item.category }}</span>
+                    <span>₪{{ "%.2f"|format(item.spent) }} / ₪{{ "%.2f"|format(item.budget) }}</span>
+                </div>
+                <div class="budget-bar">
+                    <div class="budget-fill {% if item.percentage < 80 %}budget-good{% elif item.percentage < 100 %}budget-warning{% else %}budget-danger{% endif %}"
+                         style="width: {{ [item.percentage, 100]|min }}%">
+                        {{ "%.0f"|format(item.percentage) }}%
+                    </div>
+                </div>
+                <small class="text-muted">
+                    {% if item.remaining > 0 %}
+                        ₪{{ "%.2f"|format(item.remaining) }} remaining
+                    {% else %}
+                        ₪{{ "%.2f"|format(-item.remaining) }} over budget
+                    {% endif %}
+                </small>
+            </div>
+            {% endfor %}
+        </div>
+        {% endif %}
+
+        <!-- Payer Breakdown -->
+        <div class="summary-card">
+            <h4 class="mb-3">👤 Spending by Person</h4>
+            <div class="table-responsive">
+                <table class="table table-hover">
+                    <thead>
+                        <tr>
+                            <th>Person</th>
+                            <th>Transactions</th>
+                            <th class="text-end">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in payer_summary %}
+                        <tr>
+                            <td>{{ item.payer }}</td>
+                            <td><span class="badge bg-secondary">{{ item.count }}</span></td>
+                            <td class="text-end"><strong>₪{{ "%.2f"|format(item.total) }}</strong></td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Recent Transactions -->
+        <div class="summary-card">
+            <h4 class="mb-3">📝 Recent Transactions</h4>
+            <div class="table-responsive">
+                <table class="table table-sm">
+                    <thead>
+                        <tr>
+                            <th>Date</th>
+                            <th>Category</th>
+                            <th>Payer</th>
+                            <th class="text-end">Amount</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for expense in recent_expenses %}
+                        <tr>
+                            <td>{{ expense.tx_date.strftime('%Y-%m-%d') if expense.tx_date else 'N/A' }}</td>
+                            <td>{{ expense.category }}</td>
+                            <td>{{ expense.payer }}</td>
+                            <td class="text-end">₪{{ "%.2f"|format(expense.amount) }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Export Options -->
+        <div class="summary-card">
+            <h4 class="mb-3">💾 Export Data</h4>
+            <div class="btn-group">
+                <a href="/download_csv?month={{ selected_month }}" class="btn btn-outline-primary">
+                    📊 Download CSV
+                </a>
+                <button class="btn btn-outline-secondary" onclick="window.print()">
+                    🖨️ Print Summary
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Auto-dismiss success alerts
+        window.addEventListener('load', function() {
+            document.querySelectorAll('.alert.alert-success').forEach(function(alert) {
+                setTimeout(function() {
+                    alert.remove();
+                }, 6000);
+            });
+        });
+    </script>
+</body>
+</html>
