@@ -2190,7 +2190,7 @@ def monthly_summary():
         household_users = get_household_users(current_user)
         budgets_by_user = {}
         for user in household_users:
-            user_budgets = get_user_budgets(user, current_user)
+            user_budgets = get_user_budgets(user)
             if user_budgets:
                 budgets_by_user[user] = user_budgets
         
