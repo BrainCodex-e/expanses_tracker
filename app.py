@@ -2126,101 +2126,134 @@ def monthly_summary():
     """Monthly summary page showing expenses breakdown by month with AI insights"""
     current_user = session.get('user')
     
-    # Get all expenses for the user
-    df = load_expenses(user=current_user)
-    
-    if df.empty:
-        flash('No expenses found', 'info')
-        return redirect(url_for('index'))
-    
-    # Convert dates
-    df["tx_date"] = pd.to_datetime(df["tx_date"])
-    df["year_month"] = df["tx_date"].dt.to_period('M')
-    
-    # Get unique months sorted
-    available_months = sorted(df["year_month"].unique(), reverse=True)
-    
-    # Get selected month from query params or use current month
-    selected_month = request.args.get('month')
-    if selected_month:
-        try:
-            selected_period = pd.Period(selected_month, freq='M')
-        except:
-            selected_period = pd.Period(date.today(), freq='M')
-    else:
-        selected_period = pd.Period(date.today(), freq='M')
-    
-    # Filter for selected month
-    month_df = df[df["year_month"] == selected_period]
-    
-    # Get previous month data for comparison
-    previous_period = selected_period - 1
-    previous_month_df = df[df["year_month"] == previous_period] if previous_period in df["year_month"].values else None
-    
-    # Calculate summary statistics
-    total_spent = month_df["amount"].sum()
-    total_transactions = len(month_df)
-    
-    # Group by category
-    category_summary = month_df.groupby("category")["amount"].agg(['sum', 'count']).reset_index()
-    category_summary.columns = ['category', 'total', 'count']
-    category_summary = category_summary.sort_values('total', ascending=False)
-    
-    # Group by payer
-    payer_summary = month_df.groupby("payer")["amount"].agg(['sum', 'count']).reset_index()
-    payer_summary.columns = ['payer', 'total', 'count']
-    payer_summary = payer_summary.sort_values('total', ascending=False)
-    
-    # Get budget information for the month
-    household_users = get_household_users(current_user)
-    budgets_by_user = {}
-    for user in household_users:
-        user_budgets = get_user_budgets(user, current_user)
-        if user_budgets:
-            budgets_by_user[user] = user_budgets
-    
-    # Calculate budget usage per category
-    budget_usage = []
-    for user in household_users:
-        user_month_df = month_df[month_df["payer"] == user]
-        user_budgets = budgets_by_user.get(user, {})
-        
-        for category, budget_limit in user_budgets.items():
-            spent = user_month_df[user_month_df["category"] == category]["amount"].sum()
-            percentage = (spent / budget_limit * 100) if budget_limit > 0 else 0
-            budget_usage.append({
-                'user': user,
-                'category': category,
-                'budget': budget_limit,
-                'spent': spent,
-                'remaining': budget_limit - spent,
-                'percentage': percentage
-            })
-    
-    # Generate AI insights
-    ai_insights = None
     try:
-        from ai_insights import generate_spending_insights
-        ai_insights = generate_spending_insights(month_df, budgets_by_user, previous_month_df)
-    except Exception as e:
-        print(f"⚠️  AI insights disabled: {e}")
-        ai_insights = {
-            'enabled': False,
-            'tips': [],
-            'warnings': [],
-            'summary': 'AI insights not available'
-        }
+        # Get all expenses for the user
+        df = load_expenses(user=current_user)
+        
+        if df.empty:
+            flash('No expenses found. Start by adding some expenses!', 'info')
+            return redirect(url_for('index'))
+        
+        # Convert dates
+        df["tx_date"] = pd.to_datetime(df["tx_date"])
+        df["year_month"] = df["tx_date"].dt.to_period('M')
+        
+        # Get unique months sorted
+        available_months = sorted(df["year_month"].unique(), reverse=True)
+        
+        # Get selected month from query params or use current month
+        selected_month = request.args.get('month')
+        if selected_month:
+            try:
+                selected_period = pd.Period(selected_month, freq='M')
+            except:
+                selected_period = pd.Period(date.today(), freq='M')
+        else:
+            selected_period = pd.Period(date.today(), freq='M')
+        
+        # Filter for selected month
+        month_df = df[df["year_month"] == selected_period]
+        
+        # If no data for selected month, show message
+        if month_df.empty:
+            flash(f'No expenses found for {selected_period.strftime("%B %Y")}. Try another month.', 'warning')
+            # Use first available month
+            if len(available_months) > 0:
+                selected_period = available_months[0]
+                month_df = df[df["year_month"] == selected_period]
+            else:
+                return redirect(url_for('index'))
+        
+        # Get previous month data for comparison
+        previous_period = selected_period - 1
+        previous_month_df = df[df["year_month"] == previous_period] if previous_period in df["year_month"].values else None
+        
+        # Calculate summary statistics
+        total_spent = float(month_df["amount"].sum()) if not month_df.empty else 0.0
+        total_transactions = len(month_df)
+        
+        # Group by category
+        category_summary = []
+        if not month_df.empty:
+            cat_group = month_df.groupby("category")["amount"].agg(['sum', 'count']).reset_index()
+            cat_group.columns = ['category', 'total', 'count']
+            category_summary = cat_group.sort_values('total', ascending=False).to_dict('records')
+        
+        # Group by payer
+        payer_summary = []
+        if not month_df.empty:
+            payer_group = month_df.groupby("payer")["amount"].agg(['sum', 'count']).reset_index()
+            payer_group.columns = ['payer', 'total', 'count']
+            payer_summary = payer_group.sort_values('total', ascending=False).to_dict('records')
+        
+        # Get budget information for the month
+        household_users = get_household_users(current_user)
+        budgets_by_user = {}
+        for user in household_users:
+            user_budgets = get_user_budgets(user, current_user)
+            if user_budgets:
+                budgets_by_user[user] = user_budgets
+        
+        # Calculate budget usage per category
+        budget_usage = []
+        for user in household_users:
+            user_month_df = month_df[month_df["payer"] == user] if not month_df.empty else pd.DataFrame()
+            user_budgets = budgets_by_user.get(user, {})
+            
+            for category, budget_limit in user_budgets.items():
+                spent = float(user_month_df[user_month_df["category"] == category]["amount"].sum()) if not user_month_df.empty else 0.0
+                percentage = (spent / budget_limit * 100) if budget_limit > 0 else 0
+                budget_usage.append({
+                    'user': user,
+                    'category': category,
+                    'budget': float(budget_limit),
+                    'spent': spent,
+                    'remaining': float(budget_limit) - spent,
+                    'percentage': float(percentage)
+                })
+        
+        # Generate AI insights
+        ai_insights = None
+        try:
+            from ai_insights import generate_spending_insights
+            if not month_df.empty:
+                ai_insights = generate_spending_insights(month_df, budgets_by_user, previous_month_df)
+            else:
+                ai_insights = {
+                    'enabled': False,
+                    'tips': [],
+                    'warnings': [],
+                    'summary': 'No data for AI analysis'
+                }
+        except Exception as e:
+            print(f"⚠️  AI insights disabled: {e}")
+            ai_insights = {
+                'enabled': False,
+                'tips': [],
+                'warnings': [],
+                'summary': 'AI insights not available'
+            }
+        
+        # Convert recent expenses to dict
+        recent_expenses = month_df.head(10).to_dict('records') if not month_df.empty else []
+        
+        return render_template('monthly_summary.html',
+                             available_months=available_months,
+                             selected_month=selected_period,
+                             total_spent=total_spent,
+                             total_transactions=total_transactions,
+                             category_summary=category_summary,
+                             payer_summary=payer_summary,
+                             budget_usage=budget_usage,
+                             recent_expenses=recent_expenses,
+                             ai_insights=ai_insights)
     
-    return render_template('monthly_summary.html',
-                         available_months=available_months,
-                         selected_month=selected_period,
-                         total_spent=total_spent,
-                         total_transactions=total_transactions,
-                         category_summary=category_summary.to_dict('records'),
-                         payer_summary=payer_summary.to_dict('records'),
-                         budget_usage=budget_usage,
-                         recent_expenses=month_df.head(10).to_dict('records'),
-                         ai_insights=ai_insights)
+    except Exception as e:
+        print(f"❌ Monthly summary error: {e}")
+        import traceback
+        traceback.print_exc()
+        flash(f'Error loading monthly summary: {str(e)}', 'error')
+        return redirect(url_for('index'))
 
 
 @app.route("/debug/expenses")
